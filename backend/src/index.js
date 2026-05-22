@@ -27,6 +27,7 @@ app.use("/commerces", require("./routes/commerces.routes"));
 app.use("/invendus", require("./routes/invendus.routes"));
 app.use("/beneficiaires", require("./routes/beneficiaires.routes"));
 app.use("/terrain", require("./routes/terrain.routes"));
+app.use("/marketplace", require("./routes/marketplace.routes"));
 
 app.get("/health", (req, res) => res.json({ status: "ok", version: "1.0.0", uptime: process.uptime() }));
 
