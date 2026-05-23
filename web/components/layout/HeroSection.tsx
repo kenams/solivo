@@ -42,29 +42,37 @@ export function HeroSection() {
         </div>
 
         {/* Quick action cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
           <Link href="/carte" className="group p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all text-left">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <MapPin className="text-blue-500" size={20} />
             </div>
-            <h3 className="font-bold text-gray-800 mb-1">Carte interactive</h3>
-            <p className="text-sm text-gray-500">Maraudes, besoins et commerces près de vous</p>
+            <h3 className="font-bold text-gray-800 mb-1 text-sm">Carte interactive</h3>
+            <p className="text-xs text-gray-500">Maraudes et besoins près de vous</p>
           </Link>
 
           <Link href="/signalement" className="group p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all text-left">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <AlertTriangle className="text-orange-500" size={20} />
             </div>
-            <h3 className="font-bold text-gray-800 mb-1">Signalement anonyme</h3>
-            <p className="text-sm text-gray-500">Alertez discrètement pour aider rapidement</p>
+            <h3 className="font-bold text-gray-800 mb-1 text-sm">Signalement</h3>
+            <p className="text-xs text-gray-500">Alertez discrètement</p>
+          </Link>
+
+          <Link href="/invendus" className="group p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-green-200 hover:shadow-md transition-all text-left">
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <span className="text-lg">♻️</span>
+            </div>
+            <h3 className="font-bold text-gray-800 mb-1 text-sm">Invendus</h3>
+            <p className="text-xs text-gray-500">Zéro gaspillage alimentaire</p>
           </Link>
 
           <Link href="/transparence" className="group p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all text-left">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <Heart className="text-purple-500" size={20} />
             </div>
-            <h3 className="font-bold text-gray-800 mb-1">Transparence totale</h3>
-            <p className="text-sm text-gray-500">Chaque euro tracé, chaque achat justifié</p>
+            <h3 className="font-bold text-gray-800 mb-1 text-sm">Transparence</h3>
+            <p className="text-xs text-gray-500">Chaque euro tracé</p>
           </Link>
         </div>
       </div>
