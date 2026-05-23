@@ -43,7 +43,7 @@ function makeIcon(Leaflet: typeof L, style: { bg: string; glow: string; emoji: s
   });
 }
 
-export function MapView({ filters }: { filters: Filters }) {
+export function MapView({ filters, flyTo }: { filters: Filters; flyTo?: { lat: number; lng: number; zoom?: number } | null }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layersRef = useRef<{ [key: string]: L.LayerGroup }>({});
@@ -227,6 +227,12 @@ export function MapView({ filters }: { filters: Filters }) {
       }
     });
   }, [filters, mapReady]);
+
+  // Fly to searched address
+  useEffect(() => {
+    if (!flyTo || !mapInstanceRef.current) return;
+    mapInstanceRef.current.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom ?? 15, { duration: 1.2, easeLinearity: 0.25 });
+  }, [flyTo]);
 
   return (
     <>
