@@ -102,6 +102,8 @@ router.post("/alertes", authRequired, async (req, res, next) => {
   try {
     const { type, titre, description, city, lat, lng, niveau, expires_at } = req.body;
     if (!type || !titre) return res.status(400).json({ error: "missing_fields" });
+    if (niveau && !["info", "warning", "critical"].includes(niveau))
+      return res.status(400).json({ error: "invalid_niveau", valid: ["info", "warning", "critical"] });
     const a = await supa(supabase.from("alertes")
       .insert({ type, titre, description, city, lat, lng, niveau, expires_at, created_by: req.user.sub }).select().single());
     return res.status(201).json(a);

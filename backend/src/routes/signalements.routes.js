@@ -29,6 +29,8 @@ router.post("/", optionalAuth, async (req, res, next) => {
   try {
     const { type, description, lat, lng, address, city, anonymous = true, photo_url } = req.body;
     if (!type || !lat || !lng) return res.status(400).json({ error: "missing_fields" });
+    if (!["homeless", "food", "medical", "family", "urgent", "other"].includes(type))
+      return res.status(400).json({ error: "invalid_type", valid: ["homeless", "food", "medical", "family", "urgent", "other"] });
 
     const sig = await supa(supabase.from("signalements").insert({
       type, description, lat, lng, address, city, anonymous, photo_url,
