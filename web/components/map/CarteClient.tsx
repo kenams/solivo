@@ -24,7 +24,7 @@ export function CarteClient() {
   return (
     <div className="pt-16 h-screen flex flex-col bg-[#0d1117]">
       {/* Header bar */}
-      <div className="bg-[#0a1628]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-2.5 flex items-center gap-3 shrink-0">
+      <div className="bg-[#0a1628] border-b border-white/[0.06] px-4 py-2.5 flex items-center gap-3 shrink-0">
 
         {/* Brand */}
         <div className="flex items-center gap-2 shrink-0">

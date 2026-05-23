@@ -137,7 +137,8 @@ export function LocationPicker({ onLocation }: { onLocation: (r: GeoResult) => v
       {open && (
         <div
           onClick={e => e.stopPropagation()}
-          className="absolute top-full mt-2 left-0 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+          className="absolute top-full mt-2 left-0 w-80 rounded-2xl z-[9999] overflow-hidden"
+          style={{ background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", backdropFilter: "none", WebkitBackdropFilter: "none" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
