@@ -43,8 +43,8 @@ export function Footer() {
                 { href: "/inscription", label: "Créer un compte" },
                 { href: "/associations/creer", label: "Mon association" },
                 { href: "/partenaires/commerce", label: "Devenir partenaire" },
+                { href: "/commerces", label: "Commerces partenaires" },
                 { href: "/leaderboard", label: "Classement" },
-                { href: "/signalement", label: "Signalement" },
               ].map(l => (
                 <li key={l.href}><Link href={l.href} className="hover:text-white transition-colors">{l.label}</Link></li>
               ))}
