@@ -1,60 +1,53 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MapPin, ChevronDown, Search, Loader2, X, Check } from "lucide-react";
+import { MapPin, ChevronDown, X, Search, Loader2, Check } from "lucide-react";
 
-interface LocationResult { lat: number; lng: number; zoom: number; label: string }
+interface GeoResult { lat: number; lng: number; zoom: number; label: string }
 interface Dept { code: string; nom: string }
 interface Ville { code: string; nom: string; centre: { coordinates: [number, number] } }
-interface BANFeature {
-  geometry: { coordinates: [number, number] };
-  properties: { label: string };
-}
+interface BANFeature { geometry: { coordinates: [number, number] }; properties: { label: string } }
 
-type Step = "dept" | "ville" | "adresse" | null;
+export function LocationPicker({ onLocation }: { onLocation: (r: GeoResult) => void }) {
+  const [open,   setOpen]   = useState(false);
+  const [dept,   setDept]   = useState<Dept | null>(null);
+  const [ville,  setVille]  = useState<Ville | null>(null);
+  const [adresse,setAdresse]= useState("");
 
-export function LocationPicker({ onLocation }: { onLocation: (r: LocationResult) => void }) {
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [activeStep, setActiveStep] = useState<Step>(null);
+  const [depts,       setDepts]       = useState<Dept[]>([]);
+  const [villes,      setVilles]      = useState<Ville[]>([]);
+  const [suggestions, setSuggestions] = useState<BANFeature[]>([]);
 
-  const [dept, setDept] = useState<Dept | null>(null);
-  const [ville, setVille] = useState<Ville | null>(null);
-  const [adresseLabel, setAdresseLabel] = useState("");
+  const [loadingD, setLoadingD] = useState(false);
+  const [loadingV, setLoadingV] = useState(false);
+  const [loadingA, setLoadingA] = useState(false);
 
-  const [depts, setDepts] = useState<Dept[]>([]);
-  const [villes, setVilles] = useState<Ville[]>([]);
-  const [adresses, setAdresses] = useState<BANFeature[]>([]);
+  const [qDept,  setQDept]  = useState("");
+  const [qVille, setQVille] = useState("");
+  const [qAdr,   setQAdr]   = useState("");
 
-  const [loadingDepts, setLoadingDepts] = useState(false);
-  const [loadingVilles, setLoadingVilles] = useState(false);
-  const [loadingAdresses, setLoadingAdresses] = useState(false);
+  const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  const [deptQ, setDeptQ] = useState("");
-  const [villeQ, setVilleQ] = useState("");
-  const [adresseQ, setAdresseQ] = useState("");
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Fetch departments once
+  // Load departments once
   useEffect(() => {
-    setLoadingDepts(true);
+    setLoadingD(true);
     fetch("https://geo.api.gouv.fr/departements?fields=nom,code&limit=110")
       .then(r => r.json())
       .then((d: Dept[]) => setDepts(d.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))))
       .catch(() => {})
-      .finally(() => setLoadingDepts(false));
+      .finally(() => setLoadingD(false));
   }, []);
 
-  // Fetch cities when dept selected
+  // Load cities when dept changes
   useEffect(() => {
     if (!dept) return;
-    setVilles([]); setVille(null); setAdresseQ(""); setAdresseLabel(""); setVilleQ("");
-    setLoadingVilles(true);
+    setVilles([]); setVille(null); setQVille(""); setQAdr(""); setSuggestions([]);
+    setLoadingV(true);
     fetch(`https://geo.api.gouv.fr/communes?codeDepartement=${dept.code}&fields=nom,code,centre&boost=population&limit=500`)
       .then(r => r.json())
       .then((d: Ville[]) => setVilles(d.sort((a, b) => a.nom.localeCompare(b.nom))))
       .catch(() => {})
-      .finally(() => setLoadingVilles(false));
+      .finally(() => setLoadingV(false));
     // Fly to dept center
     fetch(`https://geo.api.gouv.fr/communes?codeDepartement=${dept.code}&fields=centre&boost=population&limit=1`)
       .then(r => r.json())
@@ -67,253 +60,228 @@ export function LocationPicker({ onLocation }: { onLocation: (r: LocationResult)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dept]);
 
-  // Fly to city
+  // Fly to city when selected
   useEffect(() => {
     if (!ville?.centre) return;
-    setAdresseQ(""); setAdresseLabel(""); setAdresses([]);
     const [lng, lat] = ville.centre.coordinates;
     onLocation({ lat, lng, zoom: 13, label: ville.nom });
+    setQAdr(""); setSuggestions([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ville]);
 
   // BAN address search
-  const searchAdresse = useCallback((q: string) => {
-    if (!ville || q.trim().length < 3) { setAdresses([]); return; }
-    setLoadingAdresses(true);
-    fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&citycode=${ville.code}&limit=6`)
+  const searchBAN = useCallback((q: string) => {
+    if (!ville || q.trim().length < 3) { setSuggestions([]); return; }
+    setLoadingA(true);
+    fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&citycode=${ville.code}&limit=5`)
       .then(r => r.json())
-      .then((d: { features: BANFeature[] }) => setAdresses(d.features ?? []))
+      .then((d: { features: BANFeature[] }) => setSuggestions(d.features ?? []))
       .catch(() => {})
-      .finally(() => setLoadingAdresses(false));
+      .finally(() => setLoadingA(false));
   }, [ville]);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchAdresse(adresseQ), 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [adresseQ, searchAdresse]);
+    if (debRef.current) clearTimeout(debRef.current);
+    debRef.current = setTimeout(() => searchBAN(qAdr), 350);
+    return () => { if (debRef.current) clearTimeout(debRef.current); };
+  }, [qAdr, searchBAN]);
 
-  const pickAdresse = (a: BANFeature) => {
-    const [lng, lat] = a.geometry.coordinates;
-    const lbl = a.properties.label;
-    setAdresseLabel(lbl); setAdresseQ(lbl); setAdresses([]);
-    onLocation({ lat, lng, zoom: 17, label: lbl });
-    setPanelOpen(false); setActiveStep(null);
-  };
-
-  const reset = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDept(null); setVille(null); setAdresseLabel(""); setAdresseQ("");
-    setDeptQ(""); setVilleQ(""); setAdresses([]);
-    setPanelOpen(false); setActiveStep(null);
-  };
-
-  // Close panel on outside click
+  // Close on outside click — but NOT when clicking inside the panel
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setPanelOpen(false); setActiveStep(null);
+    const h = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("click", h, true); // capture phase
+    return () => document.removeEventListener("click", h, true);
   }, []);
 
-  const filteredDepts = deptQ.trim()
-    ? depts.filter(d => d.nom.toLowerCase().includes(deptQ.toLowerCase()) || d.code.includes(deptQ))
-    : depts;
+  const pickAdresse = (f: BANFeature) => {
+    const [lng, lat] = f.geometry.coordinates;
+    const lbl = f.properties.label;
+    setAdresse(lbl); setQAdr(lbl); setSuggestions([]);
+    onLocation({ lat, lng, zoom: 17, label: lbl });
+    setOpen(false);
+  };
 
-  const filteredVilles = villeQ.trim()
-    ? villes.filter(v => v.nom.toLowerCase().includes(villeQ.toLowerCase()))
-    : villes;
+  const reset = () => {
+    setDept(null); setVille(null); setAdresse(""); setQDept(""); setQVille(""); setQAdr(""); setSuggestions([]);
+  };
 
-  const currentLabel = adresseLabel || ville?.nom || dept?.nom;
+  const dFiltered = qDept ? depts.filter(d => d.nom.toLowerCase().includes(qDept.toLowerCase()) || d.code.startsWith(qDept)) : depts;
+  const vFiltered = qVille ? villes.filter(v => v.nom.toLowerCase().includes(qVille.toLowerCase())) : villes;
+
+  const label = adresse || ville?.nom || dept?.nom;
 
   return (
-    <div ref={panelRef} className="relative shrink-0">
-      {/* Trigger button */}
+    <div ref={wrapRef} className="relative shrink-0">
+      {/* Trigger */}
       <button
-        type="button"
-        onClick={() => { setPanelOpen(o => !o); setActiveStep("dept"); }}
+        onClick={() => setOpen(o => !o)}
         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-medium transition-all whitespace-nowrap ${
-          panelOpen || currentLabel
+          open || label
             ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
             : "bg-white/[0.06] border-white/[0.1] text-white/60 hover:text-white hover:bg-white/[0.1]"
         }`}
       >
         <MapPin size={14} />
-        <span className="hidden sm:inline max-w-[160px] truncate">
-          {currentLabel ?? "Zone de recherche"}
-        </span>
-        {currentLabel
-          ? <X size={13} onClick={reset} className="hover:text-white/80" />
-          : <ChevronDown size={13} className={`transition-transform ${panelOpen ? "rotate-180" : ""}`} />
+        <span className="hidden sm:inline max-w-[160px] truncate">{label ?? "Zone de recherche"}</span>
+        {label
+          ? <X size={13} onClick={e => { e.stopPropagation(); reset(); }} />
+          : <ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
         }
       </button>
 
-      {/* Panel */}
-      {panelOpen && (
-        <div className="absolute top-full mt-2 left-0 w-80 bg-[#0d1a2d] border border-white/[0.12] rounded-2xl shadow-2xl z-[2000] p-4 space-y-3">
-
-          {/* Pays — fixed */}
-          <div>
-            <p className="text-white/35 text-[10px] uppercase tracking-wider font-bold mb-1.5">Pays</p>
-            <div className="px-3 py-2 bg-white/[0.04] border border-white/[0.06] rounded-xl text-white/50 text-sm">
-              🇫🇷 France
-            </div>
+      {/* Dropdown panel — stopPropagation empêche la fermeture sur clic intérieur */}
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          className="absolute top-full mt-2 left-0 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <span className="text-sm font-bold text-gray-800">Localiser une zone</span>
+            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
           </div>
 
-          {/* Département */}
-          <div>
-            <p className="text-white/35 text-[10px] uppercase tracking-wider font-bold mb-1.5">
-              Département {loadingDepts && <Loader2 size={10} className="inline animate-spin ml-1" />}
-            </p>
-            {/* Selected display */}
-            {dept && activeStep !== "dept" ? (
-              <button
-                type="button"
-                onClick={() => setActiveStep("dept")}
-                className="w-full flex items-center justify-between px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm"
-              >
-                <span><span className="text-emerald-500/70 mr-1.5">{dept.code}</span>{dept.nom}</span>
-                <Check size={13} />
-              </button>
-            ) : (
-              <div className="bg-white/[0.05] border border-white/[0.1] rounded-xl overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
-                  <Search size={12} className="text-white/40 shrink-0" />
-                  <input
-                    autoFocus={activeStep === "dept"}
-                    value={deptQ}
-                    onChange={e => setDeptQ(e.target.value)}
-                    placeholder="Ex: 75, Paris, Rhône..."
-                    className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
-                  />
-                  {deptQ && <button type="button" onClick={() => setDeptQ("")}><X size={11} className="text-white/40" /></button>}
-                </div>
-                <div className="max-h-40 overflow-y-auto overscroll-contain">
-                  {filteredDepts.length === 0
-                    ? <p className="text-white/30 text-xs px-3 py-2 text-center">Aucun résultat</p>
-                    : filteredDepts.map(d => (
-                      <button
-                        key={d.code}
-                        type="button"
-                        onMouseDown={e => e.preventDefault()} // empêche le blur de l'input
-                        onClick={() => { setDept(d); setDeptQ(""); setActiveStep("ville"); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/[0.08] transition-colors text-left"
-                      >
-                        <span className="text-white/40 text-xs w-6 shrink-0">{d.code}</span>
-                        <span className="text-white/80">{d.nom}</span>
-                      </button>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Ville */}
-          {dept && (
+          <div className="p-3 space-y-3">
+            {/* Pays */}
             <div>
-              <p className="text-white/35 text-[10px] uppercase tracking-wider font-bold mb-1.5">
-                Ville / Commune {loadingVilles && <Loader2 size={10} className="inline animate-spin ml-1" />}
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pays</p>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm text-gray-500">🇫🇷 France</div>
+            </div>
+
+            {/* Département */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                Département {loadingD && <Loader2 size={10} className="inline animate-spin ml-1" />}
               </p>
-              {ville && activeStep !== "ville" ? (
+              {dept ? (
                 <button
-                  type="button"
-                  onClick={() => setActiveStep("ville")}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm"
+                  onClick={() => { setDept(null); setVille(null); }}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700"
                 >
-                  <span>{ville.nom}</span>
-                  <Check size={13} />
+                  <span><span className="text-emerald-400 mr-1.5">{dept.code}</span>{dept.nom}</span>
+                  <div className="flex items-center gap-1">
+                    <Check size={13} className="text-emerald-500" />
+                    <X size={12} className="text-emerald-400 hover:text-emerald-700" />
+                  </div>
                 </button>
               ) : (
-                <div className="bg-white/[0.05] border border-white/[0.1] rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
-                    <Search size={12} className="text-white/40 shrink-0" />
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                    <Search size={13} className="text-gray-400" />
                     <input
-                      autoFocus={activeStep === "ville"}
-                      value={villeQ}
-                      onChange={e => setVilleQ(e.target.value)}
-                      placeholder="Rechercher une ville..."
-                      disabled={loadingVilles}
-                      className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none disabled:opacity-40"
+                      value={qDept}
+                      onChange={e => setQDept(e.target.value)}
+                      placeholder="Ex: 75 Paris, Loire..."
+                      className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400"
                     />
-                    {villeQ && <button type="button" onClick={() => setVilleQ("")}><X size={11} className="text-white/40" /></button>}
+                    {qDept && <button onClick={() => setQDept("")}><X size={11} className="text-gray-400" /></button>}
                   </div>
-                  <div className="max-h-40 overflow-y-auto overscroll-contain">
-                    {loadingVilles
-                      ? <p className="text-white/30 text-xs px-3 py-3 text-center flex items-center justify-center gap-2"><Loader2 size={12} className="animate-spin" />Chargement...</p>
-                      : filteredVilles.length === 0
-                      ? <p className="text-white/30 text-xs px-3 py-2 text-center">Aucun résultat</p>
-                      : filteredVilles.map(v => (
-                        <button
-                          key={v.code}
-                          type="button"
-                          onMouseDown={e => e.preventDefault()}
-                          onClick={() => { setVille(v); setVilleQ(""); setActiveStep("adresse"); }}
-                          className="w-full flex items-center px-3 py-2 text-sm hover:bg-white/[0.08] transition-colors text-left text-white/80"
-                        >
-                          {v.nom}
-                        </button>
-                      ))
-                    }
+                  <div className="max-h-44 overflow-y-auto">
+                    {dFiltered.map(d => (
+                      <button
+                        key={d.code}
+                        onClick={() => { setDept(d); setQDept(""); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <span className="text-gray-400 text-xs w-7 shrink-0">{d.code}</span>
+                        <span className="text-gray-800">{d.nom}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
-          )}
 
-          {/* Adresse */}
-          {ville && (
-            <div>
-              <p className="text-white/35 text-[10px] uppercase tracking-wider font-bold mb-1.5">Rue / Adresse <span className="normal-case text-white/20">(optionnel)</span></p>
-              <div className="relative">
-                <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl focus-within:border-emerald-500/40">
-                  {loadingAdresses
-                    ? <Loader2 size={13} className="text-white/40 animate-spin shrink-0" />
-                    : <Search size={13} className="text-white/40 shrink-0" />
-                  }
-                  <input
-                    autoFocus={activeStep === "adresse"}
-                    value={adresseQ}
-                    onChange={e => setAdresseQ(e.target.value)}
-                    placeholder={`Rue à ${ville.nom}...`}
-                    className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none min-w-0"
-                  />
-                  {adresseQ && (
-                    <button type="button" onClick={() => { setAdresseQ(""); setAdresses([]); }}>
-                      <X size={12} className="text-white/30 hover:text-white/60" />
-                    </button>
-                  )}
-                </div>
-                {adresses.length > 0 && (
-                  <div className="mt-1 bg-[#0d1a2d] border border-white/[0.12] rounded-xl overflow-hidden shadow-xl">
-                    {adresses.map((a, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onMouseDown={e => e.preventDefault()}
-                        onClick={() => pickAdresse(a)}
-                        className="w-full flex items-start gap-2 px-3 py-2.5 hover:bg-white/[0.07] transition-colors text-left"
-                      >
-                        <MapPin size={12} className="text-emerald-400 shrink-0 mt-0.5" />
-                        <span className="text-white/80 text-xs leading-snug">{a.properties.label}</span>
-                      </button>
-                    ))}
+            {/* Ville */}
+            {dept && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                  Ville / Commune {loadingV && <Loader2 size={10} className="inline animate-spin ml-1" />}
+                </p>
+                {ville ? (
+                  <button
+                    onClick={() => setVille(null)}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700"
+                  >
+                    <span>{ville.nom}</span>
+                    <div className="flex items-center gap-1"><Check size={13} className="text-emerald-500" /><X size={12} className="text-emerald-400" /></div>
+                  </button>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                      <Search size={13} className="text-gray-400" />
+                      <input
+                        value={qVille}
+                        onChange={e => setQVille(e.target.value)}
+                        placeholder={loadingV ? "Chargement..." : "Chercher une ville..."}
+                        disabled={loadingV}
+                        className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400 disabled:opacity-50"
+                      />
+                      {qVille && <button onClick={() => setQVille("")}><X size={11} className="text-gray-400" /></button>}
+                    </div>
+                    <div className="max-h-44 overflow-y-auto">
+                      {loadingV
+                        ? <p className="text-center text-gray-400 text-sm py-4 flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin"/>Chargement...</p>
+                        : vFiltered.map(v => (
+                          <button
+                            key={v.code}
+                            onClick={() => { setVille(v); setQVille(""); }}
+                            className="w-full px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left text-gray-800"
+                          >
+                            {v.nom}
+                          </button>
+                        ))
+                      }
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          <button
-            type="button"
-            onClick={() => { setPanelOpen(false); setActiveStep(null); }}
-            className="w-full py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-semibold rounded-xl transition-all"
-          >
-            Voir sur la carte ↗
-          </button>
+            {/* Adresse */}
+            {ville && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Adresse <span className="normal-case text-gray-300 font-normal">(optionnel)</span></p>
+                <div className="relative">
+                  <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg focus-within:border-emerald-400">
+                    {loadingA ? <Loader2 size={13} className="text-gray-400 animate-spin" /> : <Search size={13} className="text-gray-400" />}
+                    <input
+                      value={qAdr}
+                      onChange={e => setQAdr(e.target.value)}
+                      placeholder={`Rue, numéro à ${ville.nom}...`}
+                      className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400 min-w-0"
+                    />
+                    {qAdr && <button onClick={() => { setQAdr(""); setSuggestions([]); }}><X size={12} className="text-gray-400" /></button>}
+                  </div>
+                  {suggestions.length > 0 && (
+                    <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => pickAdresse(s)}
+                          className="w-full flex items-start gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                        >
+                          <MapPin size={12} className="text-emerald-500 shrink-0 mt-0.5" />
+                          <span className="text-gray-700 text-xs leading-snug">{s.properties.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setOpen(false)}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl transition-all"
+            >
+              Voir sur la carte ↗
+            </button>
+          </div>
         </div>
       )}
     </div>
