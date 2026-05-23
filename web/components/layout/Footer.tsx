@@ -77,7 +77,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-6 flex justify-center">
-          <a href="https://kah-digital.fr" target="_blank" rel="noopener noreferrer"
+          <a href="https://kah-digital.ch/" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] transition-colors group">
             <span className="text-white/25 text-xs">Made by</span>
             <span className="text-white/60 text-xs font-bold tracking-wide group-hover:text-white/80 transition-colors">KAH Digital</span>
