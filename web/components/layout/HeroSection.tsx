@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { MapPin, Heart, AlertTriangle, Users, ArrowRight, Sparkles, Zap } from "lucide-react";
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
-  visible: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.7, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] } }),
+  visible: (i: number = 0) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.7, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  }),
 };
 
 const features = [
