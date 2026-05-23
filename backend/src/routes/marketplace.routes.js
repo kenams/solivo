@@ -12,13 +12,11 @@ function getStripe() {
 
 // ── INVENDUS ENRICHIS ────────────────────────────────────────────────────────
 
-// Publier un invenu (commerce)
 router.post("/invendus", authRequired, async (req, res, next) => {
   try {
     const { commerce_id, title, description, quantity, unit, available_until, category, weight_kg, photo_url } = req.body;
     if (!commerce_id || !title) return res.status(400).json({ error: "missing_fields" });
 
-    // Vérifier que le commerce appartient à l'user
     const commerce = await db("commerces").where({ id: commerce_id }).first();
     if (!commerce) return res.status(404).json({ error: "commerce_not_found" });
 
@@ -30,7 +28,6 @@ router.post("/invendus", authRequired, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Invendus disponibles avec géoloc
 router.get("/invendus", async (req, res, next) => {
   try {
     const { lat, lng, radius = 20, limit = 50 } = req.query;
@@ -46,10 +43,10 @@ router.get("/invendus", async (req, res, next) => {
       .whereRaw("(i.available_until IS NULL OR i.available_until > NOW())")
       .where("c.active", true)
       .orderBy("i.created_at", "desc")
-      .limit(parseInt(limit as string));
+      .limit(parseInt(limit));
 
     if (lat && lng) {
-      const latF = parseFloat(lat as string), lngF = parseFloat(lng as string), r = parseFloat(radius as string);
+      const latF = parseFloat(lat), lngF = parseFloat(lng), r = parseFloat(radius);
       q = q.whereRaw(
         `(6371 * acos(LEAST(1, cos(radians(?)) * cos(radians(c.lat)) * cos(radians(c.lng) - radians(?)) + sin(radians(?)) * sin(radians(c.lat))))) < ?`,
         [latF, lngF, latF, r]
@@ -63,7 +60,6 @@ router.get("/invendus", async (req, res, next) => {
 
 // ── DEMANDES DE COLLECTE ─────────────────────────────────────────────────────
 
-// Faire une demande de collecte (association)
 router.post("/collecte-requests", authRequired, async (req, res, next) => {
   try {
     const { invenu_id, association_id, pickup_scheduled_at, collector_name, collector_phone, note_association } = req.body;
@@ -72,11 +68,9 @@ router.post("/collecte-requests", authRequired, async (req, res, next) => {
     const invenu = await db("invendus").where({ id: invenu_id, status: "available" }).first();
     if (!invenu) return res.status(400).json({ error: "invenu_unavailable" });
 
-    // Vérifier si déjà une demande en cours
     const existing = await db("collecte_requests").where({ invenu_id, status: "pending" }).first();
     if (existing) return res.status(409).json({ error: "already_requested" });
 
-    // Récupérer le taux de commission du commerce
     const sub = await db("commerce_subscriptions").where({ commerce_id: invenu.commerce_id }).first();
     const commission_cents = sub?.commission_rate_cents ?? 150;
 
@@ -89,14 +83,12 @@ router.post("/collecte-requests", authRequired, async (req, res, next) => {
       })
       .returning("*");
 
-    // Marquer l'invenu comme réservé
     await db("invendus").where({ id: invenu_id }).update({ status: "reserved", reserved_by: association_id });
 
     return res.status(201).json(req_);
   } catch (err) { next(err); }
 });
 
-// Mes demandes (association)
 router.get("/collecte-requests/mes", authRequired, async (req, res, next) => {
   try {
     const { association_id } = req.query;
@@ -116,7 +108,6 @@ router.get("/collecte-requests/mes", authRequired, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Demandes reçues (commerce)
 router.get("/collecte-requests/commerce/:commerce_id", authRequired, async (req, res, next) => {
   try {
     const requests = await db("collecte_requests as cr")
@@ -129,7 +120,6 @@ router.get("/collecte-requests/commerce/:commerce_id", authRequired, async (req,
   } catch (err) { next(err); }
 });
 
-// Accepter / refuser une demande (commerce)
 router.patch("/collecte-requests/:id/status", authRequired, async (req, res, next) => {
   try {
     const { status, note_commerce } = req.body;
@@ -148,7 +138,6 @@ router.patch("/collecte-requests/:id/status", authRequired, async (req, res, nex
   } catch (err) { next(err); }
 });
 
-// Confirmer la collecte + déclencher paiement commission (association confirme)
 router.post("/collecte-requests/:id/confirm", authRequired, async (req, res, next) => {
   try {
     const { quantity_collected, photo_url } = req.body;
@@ -160,14 +149,11 @@ router.post("/collecte-requests/:id/confirm", authRequired, async (req, res, nex
     });
     await db("invendus").where({ id: cr.invenu_id }).update({ status: "collected" });
 
-    // Stats commerce
     await db("commerce_subscriptions")
       .where({ commerce_id: cr.commerce_id })
       .increment("total_pickups", 1)
       .increment("monthly_pickups", 1);
 
-    // Déclencher le paiement de commission via Stripe (si commerce a une méthode de paiement)
-    // En mode MVP: on crée un PaymentIntent et on le stocke — le commerce paye à la fin du mois
     if (cr.commission_cents > 0 && env.stripeSecretKey) {
       try {
         const stripe = getStripe();
@@ -185,10 +171,9 @@ router.post("/collecte-requests/:id/confirm", authRequired, async (req, res, nex
             commission_status: "pending",
           });
         }
-      } catch {} // Ne pas bloquer si Stripe échoue
+      } catch {}
     }
 
-    // Mettre à jour les stats association
     await db("associations").where({ id: cr.association_id }).increment("beneficiaries_count", 1);
 
     return res.json({ ok: true, message: "Collecte confirmée" });
@@ -212,8 +197,21 @@ router.get("/impact/:commerce_id", async (req, res, next) => {
       .where({ "cr.commerce_id": req.params.commerce_id, "cr.status": "collected" })
       .sum("cr.quantity_collected as total").first();
 
-    const total = parseInt(collectes?.count as string || "0");
-    const kg = parseFloat(totalKg?.total as string || "0");
+    const total = parseInt(collectes?.count || "0");
+    const kg = parseFloat(totalKg?.total || "0");
+
+    const assosHelped = await db("collecte_requests")
+      .where({ commerce_id: req.params.commerce_id, status: "collected" })
+      .countDistinct("association_id as count").first();
+
+    const commTotal = await db("collecte_requests")
+      .where({ commerce_id: req.params.commerce_id, status: "collected" })
+      .sum("commission_cents as total").first();
+
+    const monthly = await db("collecte_requests")
+      .where({ commerce_id: req.params.commerce_id, status: "collected" })
+      .whereRaw("created_at > NOW() - INTERVAL '30 days'")
+      .count("id as count").first();
 
     return res.json({
       commerce_name: commerce.name,
@@ -221,20 +219,16 @@ router.get("/impact/:commerce_id", async (req, res, next) => {
       total_pickups: total,
       kg_saved: kg,
       meals_equivalent: Math.round(kg * 2.5),
-      co2_saved_kg: Math.round(kg * 2.5), // ~2.5kg CO2 par kg de nourriture sauvé
-      associations_helped: await db("collecte_requests").where({ commerce_id: req.params.commerce_id, status: "collected" }).countDistinct("association_id as count").first().then(r => parseInt(r?.count as string || "0")),
-      commission_total_cents: await db("collecte_requests").where({ commerce_id: req.params.commerce_id, status: "collected" }).sum("commission_cents as total").first().then(r => parseInt(r?.total as string || "0")),
-      monthly: await db("collecte_requests")
-        .where({ commerce_id: req.params.commerce_id, status: "collected" })
-        .whereRaw("created_at > NOW() - INTERVAL '30 days'")
-        .count("id as count").first().then(r => parseInt(r?.count as string || "0")),
+      co2_saved_kg: Math.round(kg * 2.5),
+      associations_helped: parseInt(assosHelped?.count || "0"),
+      commission_total_cents: parseInt(commTotal?.total || "0"),
+      monthly: parseInt(monthly?.count || "0"),
     });
   } catch (err) { next(err); }
 });
 
 // ── ONBOARDING COMMERCE ──────────────────────────────────────────────────────
 
-// Créer compte commerce + subscription gratuite initiale
 router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
   try {
     const { name, address, lat, lng, city, phone, email, type, siret } = req.body;
@@ -244,7 +238,6 @@ router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
       .insert({ name, address, lat, lng, city, phone, email, type, owner_id: req.user.sub })
       .returning("*");
 
-    // Créer client Stripe pour ce commerce
     let stripeCustomerId = null;
     if (env.stripeSecretKey && email) {
       try {
@@ -254,7 +247,6 @@ router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
       } catch {}
     }
 
-    // Créer subscription gratuite
     await db("commerce_subscriptions").insert({
       commerce_id: commerce.id,
       plan: "free",
@@ -268,7 +260,6 @@ router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Statistiques globales marketplace
 router.get("/stats", async (req, res, next) => {
   try {
     const collectes = await db("collecte_requests").where({ status: "collected" }).count("id as count").first();
@@ -278,12 +269,12 @@ router.get("/stats", async (req, res, next) => {
     const kgSaved = await db("collecte_requests").where({ status: "collected" }).sum("quantity_collected as total").first();
 
     return res.json({
-      collectes_confirmees: parseInt(collectes?.count as string || "0"),
-      commerces_partenaires: parseInt(commerces?.count as string || "0"),
-      associations_actives: parseInt(associations?.count as string || "0"),
-      invendus_publies: parseInt(invendus?.count as string || "0"),
-      kg_sauves: parseFloat(kgSaved?.total as string || "0"),
-      repas_equivalents: Math.round(parseFloat(kgSaved?.total as string || "0") * 2.5),
+      collectes_confirmees: parseInt(collectes?.count || "0"),
+      commerces_partenaires: parseInt(commerces?.count || "0"),
+      associations_actives: parseInt(associations?.count || "0"),
+      invendus_publies: parseInt(invendus?.count || "0"),
+      kg_sauves: parseFloat(kgSaved?.total || "0"),
+      repas_equivalents: Math.round(parseFloat(kgSaved?.total || "0") * 2.5),
     });
   } catch (err) { next(err); }
 });
