@@ -19,6 +19,7 @@ export function saveAuth(token: string, user: unknown) {
 }
 
 export function logout() {
+  if (typeof window === "undefined") return;
   localStorage.removeItem("solivo_token");
   localStorage.removeItem("solivo_user");
   window.location.href = "/";

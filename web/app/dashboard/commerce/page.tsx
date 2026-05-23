@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Plus, Package, Clock, CheckCircle, XCircle, Trash2, TrendingUp, Leaf } from "lucide-react";
+import { Plus, Package, Clock, CheckCircle, XCircle, Leaf } from "lucide-react";
 
 interface Commerce {
   id: string; name: string; type: string; address: string; city: string; active: boolean;
@@ -43,6 +43,7 @@ export default function DashboardCommercePage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", quantity: "", unit: "kg", available_until: "" });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user) { router.push("/connexion"); return; }
     loadData();

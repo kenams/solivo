@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import toast from "react-hot-toast";
@@ -39,15 +39,15 @@ export default function InvendusPage() {
   const [assoId, setAssoId] = useState("");
   const [showModal, setShowModal] = useState<string | null>(null);
 
-  useEffect(() => { loadInvendus(); }, []);
-
-  async function loadInvendus() {
+  const loadInvendus = useCallback(async () => {
     try {
       const data = await api.get("/marketplace/invendus");
       setInvendus(data);
     } catch { toast.error("Erreur de chargement"); }
     finally { setLoading(false); }
-  }
+  }, []);
+
+  useEffect(() => { loadInvendus(); }, [loadInvendus]);
 
   async function reserve(invenuId: string) {
     if (!user) return toast.error("Connectez-vous pour réserver");

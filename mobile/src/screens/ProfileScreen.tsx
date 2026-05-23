@@ -7,7 +7,9 @@ interface User { id: string; name: string; email: string; role: string; points: 
 
 export function ProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -37,6 +39,21 @@ export function ProfileScreen() {
     } finally { setLoading(false); }
   }
 
+  async function register() {
+    if (!registerForm.name || !registerForm.email || !registerForm.password) {
+      return Alert.alert("Requis", "Tous les champs sont obligatoires");
+    }
+    setLoading(true);
+    try {
+      const data = await api.post("/auth/register", registerForm);
+      await saveToken(data.token);
+      setIsLoggedIn(true);
+      setUser(data.user);
+    } catch (e: unknown) {
+      Alert.alert("Erreur", e instanceof Error ? e.message : "Erreur lors de l'inscription");
+    } finally { setLoading(false); }
+  }
+
   async function logout() {
     await clearToken();
     setIsLoggedIn(false);
@@ -45,12 +62,47 @@ export function ProfileScreen() {
 
   if (!isLoggedIn) return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 24, justifyContent: "center", minHeight: 500 }}>
-      <Text style={styles.loginTitle}>🤝 Connexion</Text>
-      <Text style={styles.loginSub}>Connectez-vous pour participer aux maraudes</Text>
-      <TextInput style={styles.input} placeholder="Email" value={loginForm.email} onChangeText={v => setLoginForm(f => ({ ...f, email: v }))} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9ca3af" />
-      <TextInput style={styles.input} placeholder="Mot de passe" value={loginForm.password} onChangeText={v => setLoginForm(f => ({ ...f, password: v }))} secureTextEntry placeholderTextColor="#9ca3af" />
-      <TouchableOpacity style={styles.loginBtn} onPress={login} disabled={loading}>
-        <Text style={styles.loginBtnText}>{loading ? "..." : "Se connecter"}</Text>
+      <Text style={styles.loginTitle}>🤝 {mode === "login" ? "Connexion" : "Inscription"}</Text>
+      <Text style={styles.loginSub}>
+        {mode === "login" ? "Connectez-vous pour participer aux maraudes" : "Créez votre compte bénévole"}
+      </Text>
+
+      {mode === "register" && (
+        <TextInput style={styles.input} placeholder="Prénom Nom" value={registerForm.name}
+          onChangeText={v => setRegisterForm(f => ({ ...f, name: v }))}
+          autoCapitalize="words" placeholderTextColor="#9ca3af" />
+      )}
+
+      {mode === "login" ? (
+        <>
+          <TextInput style={styles.input} placeholder="Email" value={loginForm.email}
+            onChangeText={v => setLoginForm(f => ({ ...f, email: v }))}
+            keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9ca3af" />
+          <TextInput style={styles.input} placeholder="Mot de passe" value={loginForm.password}
+            onChangeText={v => setLoginForm(f => ({ ...f, password: v }))}
+            secureTextEntry placeholderTextColor="#9ca3af" />
+          <TouchableOpacity style={styles.loginBtn} onPress={login} disabled={loading}>
+            <Text style={styles.loginBtnText}>{loading ? "..." : "Se connecter"}</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <TextInput style={styles.input} placeholder="Email" value={registerForm.email}
+            onChangeText={v => setRegisterForm(f => ({ ...f, email: v }))}
+            keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9ca3af" />
+          <TextInput style={styles.input} placeholder="Mot de passe" value={registerForm.password}
+            onChangeText={v => setRegisterForm(f => ({ ...f, password: v }))}
+            secureTextEntry placeholderTextColor="#9ca3af" />
+          <TouchableOpacity style={styles.loginBtn} onPress={register} disabled={loading}>
+            <Text style={styles.loginBtnText}>{loading ? "..." : "Créer mon compte"}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      <TouchableOpacity style={styles.switchMode} onPress={() => setMode(m => m === "login" ? "register" : "login")}>
+        <Text style={styles.switchModeText}>
+          {mode === "login" ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -59,7 +111,6 @@ export function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      {/* Header profil */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarLetter}>{user.name.charAt(0).toUpperCase()}</Text>
@@ -71,7 +122,6 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statNum}>⚡{user.points}</Text>
@@ -87,7 +137,6 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Badges */}
       {user.badges?.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mes badges</Text>
@@ -117,6 +166,8 @@ const styles = StyleSheet.create({
   input: { backgroundColor: "white", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 12, fontSize: 14, color: "#111" },
   loginBtn: { backgroundColor: "#10b981", borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   loginBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+  switchMode: { marginTop: 16, alignItems: "center" },
+  switchModeText: { color: "#10b981", fontSize: 14, fontWeight: "600" },
   profileHeader: { flexDirection: "row", alignItems: "center", gap: 16, backgroundColor: "white", borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#d1fae5", justifyContent: "center", alignItems: "center" },
   avatarLetter: { fontSize: 28, fontWeight: "800", color: "#065f46" },

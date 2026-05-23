@@ -17,6 +17,7 @@ function ConnectContent() {
       setAssociationId(id);
       checkStatus(id);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   async function checkStatus(id: string) {

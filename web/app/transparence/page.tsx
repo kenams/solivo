@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Eye, TrendingUp, Users, DollarSign } from "lucide-react";
 
 interface Stats {
   donations_total_cents: number;

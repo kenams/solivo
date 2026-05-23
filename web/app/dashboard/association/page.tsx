@@ -5,7 +5,7 @@ import { getUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Users, Heart, MapPin, ChevronRight, Plus, Banknote, Package } from "lucide-react";
+import { Users, MapPin, ChevronRight, Plus, Banknote, Package } from "lucide-react";
 
 interface Association {
   id: string; name: string; description: string; city: string; verified: boolean;
@@ -26,6 +26,7 @@ export default function DashboardAssociationPage() {
   const [donations, setDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user) { router.push("/connexion"); return; }
     loadData();

@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from "react-native";
-import { api } from "../lib/api";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { api, getToken } from "../lib/api";
+import { RootStackParamList } from "../navigation/AppNavigator";
+
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface Maraude {
   id: string;
@@ -16,6 +21,7 @@ interface Maraude {
 }
 
 export function MaraudesScreen() {
+  const navigation = useNavigation<NavProp>();
   const [maraudes, setMaraudes] = useState<Maraude[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -23,17 +29,22 @@ export function MaraudesScreen() {
 
   useEffect(() => {
     api.get("/maraudes?limit=50")
-      .then(d => setMaraudes(d.maraudes))
+      .then(d => setMaraudes(d.maraudes || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  async function join(id: string) {
+  async function join(id: string, title: string) {
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Connexion requise", "Connectez-vous dans l'onglet Profil pour rejoindre une maraude.");
+      return;
+    }
     setJoining(id);
     try {
       await api.post(`/maraudes/${id}/join`, {});
       setMaraudes(prev => prev.map(m => m.id === id ? { ...m, is_joined: true, volunteers_count: m.volunteers_count + 1 } : m));
-      Alert.alert("✅ Inscription confirmée !", "Vous êtes inscrit à cette maraude.");
+      navigation.navigate("Terrain", { maraudeId: id, maraudeTitle: title });
     } catch (e: unknown) {
       Alert.alert("Erreur", e instanceof Error ? e.message : "Erreur lors de l'inscription");
     } finally {
@@ -68,14 +79,14 @@ export function MaraudesScreen() {
         </View>
 
         {item.is_joined ? (
-          <View style={styles.joinedBtn}>
-            <Text style={styles.joinedText}>✓ Vous êtes inscrit</Text>
-          </View>
+          <TouchableOpacity style={styles.joinedBtn} onPress={() => navigation.navigate("Terrain", { maraudeId: item.id, maraudeTitle: item.title })}>
+            <Text style={styles.joinedText}>✓ Inscrit — Accéder au terrain →</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={[styles.joinBtn, full && styles.joinBtnDisabled]}
             disabled={full || joining === item.id}
-            onPress={() => join(item.id)}
+            onPress={() => join(item.id, item.title)}
           >
             <Text style={styles.joinBtnText}>
               {joining === item.id ? "..." : full ? "Complet" : "Rejoindre cette maraude"}

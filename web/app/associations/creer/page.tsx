@@ -27,7 +27,7 @@ export default function CreerAssociationPage() {
     if (!user) return router.push("/connexion");
     setLoading(true);
     try {
-      const asso = await api.post("/associations", { ...form, ...coords });
+      await api.post("/associations", { ...form, ...coords });
       toast.success("Association créée !");
       router.push(`/dashboard/association`);
     } catch (e: unknown) {

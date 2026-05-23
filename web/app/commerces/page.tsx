@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
-import { MapPin, Search, Phone, Globe } from "lucide-react";
+import { MapPin, Search, Phone } from "lucide-react";
 
 interface Commerce {
   id: string; name: string; type: string; address: string; city: string;

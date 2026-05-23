@@ -73,8 +73,16 @@ router.post("/", authRequired, async (req, res, next) => {
     if (!title || !date_start || !meeting_point || !lat || !lng)
       return res.status(400).json({ error: "missing_fields" });
 
+    // Si association_id fourni, vérifier que l'utilisateur en est le propriétaire
+    if (association_id) {
+      const asso = await db("associations").where({ id: association_id }).first();
+      if (!asso) return res.status(404).json({ error: "association_not_found" });
+      if (asso.created_by !== req.user.sub && req.user.role !== "admin")
+        return res.status(403).json({ error: "forbidden_not_owner" });
+    }
+
     const [maraude] = await db("maraudes")
-      .insert({ title, description, date_start, date_end, meeting_point, lat, lng, city, max_volunteers, association_id, created_by: req.user.sub })
+      .insert({ title, description, date_start, date_end, meeting_point, lat, lng, city, max_volunteers, association_id: association_id || null, created_by: req.user.sub })
       .returning("*");
 
     return res.status(201).json(maraude);

@@ -14,7 +14,7 @@ function getStripe() {
 router.post("/checkout", optionalAuth, async (req, res, next) => {
   try {
     const { amount, anonymous = false, message, association_id, recurring = false, contribution_percent = 0 } = req.body;
-    if (!amount || amount < 100) return res.status(400).json({ error: "min_amount_100_cents" });
+    if (!amount || amount < 100 || amount > 500000) return res.status(400).json({ error: "invalid_amount" });
 
     const pct = Math.max(0, Math.min(30, parseInt(contribution_percent) || 0));
     const platformFee = Math.round(amount * pct / 100);

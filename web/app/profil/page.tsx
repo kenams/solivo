@@ -36,10 +36,11 @@ export default function ProfilPage() {
 
   useEffect(() => {
     if (!localUser) { router.push("/connexion"); return; }
-    api.get("/auth/me").then(data => {
-      setUser(data);
-    });
-    api.get("/maraudes?limit=10").then(d => setMyMaraudes(d.maraudes || []));
+    api.get("/auth/me")
+      .then(data => setUser(data))
+      .catch(() => router.push("/connexion"));
+    api.get("/maraudes?limit=10").then(d => setMyMaraudes(d.maraudes || [])).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!user) return <div className="pt-24 text-center text-gray-400 animate-pulse">Chargement...</div>;

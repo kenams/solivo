@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 function MerciContent() {
   const params = useSearchParams();
-  const session = params.get("session_id");
+  params.get("session_id"); // consumed for Stripe verification server-side
   return (
     <div className="pt-24 pb-16 min-h-screen bg-emerald-50 flex items-center justify-center">
       <div className="max-w-lg mx-auto px-6 text-center">

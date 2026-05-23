@@ -3,12 +3,13 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { getUser, logout } from "@/lib/auth";
-import { Heart, Map, Users, AlertTriangle, Trophy, Menu, X, LogOut, User, Recycle, LayoutDashboard, ChevronDown } from "lucide-react";
+import { Heart, Map, Users, AlertTriangle, Trophy, Menu, X, LogOut, User, Recycle, LayoutDashboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  if (pathname.startsWith("/admin")) return null;
   const [user, setUser] = useState<{ name: string; role: string; points: number } | null>(null);
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);

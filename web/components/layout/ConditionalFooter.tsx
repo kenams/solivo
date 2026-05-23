@@ -2,7 +2,7 @@
 import { usePathname } from "next/navigation";
 import { Footer } from "./Footer";
 
-const NO_FOOTER = ["/carte"];
+const NO_FOOTER = ["/carte", "/admin"];
 
 export function ConditionalFooter() {
   const pathname = usePathname();

@@ -32,7 +32,6 @@ export default function AssociationPage({ params }: { params: Promise<{ id: stri
 
   const totalExpenses = asso.expenses?.reduce((s, e) => s + e.amount_cents, 0) || 0;
   const maraudes = asso.maraudes || [];
-  const upcomingMaraudes = maraudes.filter(m => m.status !== "completed").slice(0, 4);
 
   return (
     <div className="pt-20 pb-16 min-h-screen bg-gray-50">

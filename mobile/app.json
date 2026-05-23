@@ -1,25 +1,57 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Solivo",
+    "slug": "solivo",
     "version": "1.0.0",
+    "scheme": "solivo",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.solivo.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Solivo utilise votre position pour afficher les maraudes près de vous et partager votre position avec l'équipe pendant une maraude.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Solivo utilise votre position pour les maraudes terrain.",
+        "NSCameraUsageDescription": "Utilisé pour les photos de signalement.",
+        "NSPhotoLibraryUsageDescription": "Utilisé pour les photos de signalement."
+      }
     },
     "android": {
+      "package": "com.solivo.app",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#10b981",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Solivo utilise votre position pour les maraudes terrain."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "solivo-app"
+      }
     }
   }
 }

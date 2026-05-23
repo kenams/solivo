@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { getUser, saveAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { MapPin, TrendingUp, Heart, Award, CheckCircle, Euro } from "lucide-react";
+import { MapPin, CheckCircle } from "lucide-react";
 
 const AVANTAGES = [
   { emoji: "♻️", title: "Zéro gaspillage", desc: "Vos invendus nourrissent des personnes dans le besoin plutôt que de finir à la poubelle." },

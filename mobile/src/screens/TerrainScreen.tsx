@@ -1,10 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, Modal, FlatList, ActivityIndicator, Vibration
+  TextInput, Alert, Modal, ActivityIndicator, Vibration
 } from "react-native";
 import * as Location from "expo-location";
 import { api } from "../lib/api";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/AppNavigator";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Terrain">;
 
 interface TeamMessage {
   id: string; sender_name: string; content: string;
@@ -29,7 +33,7 @@ const PHASES = [
 
 const DONS = ["repas", "boisson", "couverture", "vêtements", "kit_hygiene", "médicament", "autre"];
 
-export function TerrainScreen({ route }: { route: { params: { maraudeId: string; maraudeTitle: string } } }) {
+export function TerrainScreen({ route, navigation }: Props) {
   const { maraudeId, maraudeTitle } = route.params;
   const [phase, setPhase] = useState(0);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
@@ -39,9 +43,11 @@ export function TerrainScreen({ route }: { route: { params: { maraudeId: string;
   const [loading, setLoading] = useState(false);
   const [showBenefModal, setShowBenefModal] = useState(false);
   const [showRapportModal, setShowRapportModal] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertInput, setAlertInput] = useState("");
   const [newBenef, setNewBenef] = useState({ pseudonym: "", genre: "inconnu", situation: "rue", dons: [] as string[], etat_general: "moyen", note: "" });
   const [rapport, setRapport] = useState({ personnes_rencontrees: "", repas_distribues: "", kits_distribues: "", orientations: "", bilan_qualitatif: "", duree_heures: "" });
-  const posInterval = useRef<NodeJS.Timeout | null>(null);
+  const posInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadData();
@@ -160,10 +166,24 @@ export function TerrainScreen({ route }: { route: { params: { maraudeId: string;
     setNewBenef(b => ({ ...b, dons: b.dons.includes(d) ? b.dons.filter(x => x !== d) : [...b.dons, d] }));
   }
 
+  async function sendAlert() {
+    if (!alertInput.trim()) return;
+    try {
+      const msg = await api.post(`/terrain/maraudes/${maraudeId}/messages`, { content: `🚨 ALERTE: ${alertInput}`, type: "alert" });
+      setMessages(prev => [...prev, msg]);
+      Vibration.vibrate([0, 100, 100, 100]);
+    } catch { Alert.alert("Erreur", "Alerte non envoyée"); }
+    setShowAlertModal(false);
+    setAlertInput("");
+  }
+
   return (
     <View style={styles.container}>
       {/* Header phase */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Retour</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>🗺️ {maraudeTitle}</Text>
         <Text style={styles.headerSub}>Mode terrain actif</Text>
       </View>
@@ -227,10 +247,8 @@ export function TerrainScreen({ route }: { route: { params: { maraudeId: string;
                 <Text style={styles.bigBtnSub}>Enregistrer une personne aidée</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.bigBtn, styles.bigBtnAlert]} onPress={() => {
-                setMsgInput("BESOIN D'AIDE en ");
-                Alert.prompt("🚨 Alerte équipe", "Décrivez l'urgence :", (text) => {
-                  if (text) api.post(`/terrain/maraudes/${maraudeId}/messages`, { content: `🚨 ALERTE: ${text}`, type: "alert" });
-                });
+                setAlertInput("");
+                setShowAlertModal(true);
               }}>
                 <Text style={styles.bigBtnEmoji}>🚨</Text>
                 <Text style={styles.bigBtnLabel}>Alerte équipe</Text>
@@ -360,6 +378,27 @@ export function TerrainScreen({ route }: { route: { params: { maraudeId: string;
         </View>
       </Modal>
 
+      {/* Modal alerte cross-platform */}
+      <Modal visible={showAlertModal} animationType="fade" transparent>
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>🚨 Alerte équipe</Text>
+            <Text style={styles.alertSub}>Décrivez l'urgence :</Text>
+            <TextInput style={styles.alertInput} value={alertInput} onChangeText={setAlertInput}
+              placeholder="Ex: Personne inconsciente rue Victor Hugo" placeholderTextColor="#9ca3af"
+              autoFocus multiline />
+            <View style={styles.alertBtns}>
+              <TouchableOpacity style={styles.alertCancel} onPress={() => setShowAlertModal(false)}>
+                <Text style={styles.alertCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.alertSend} onPress={sendAlert}>
+                <Text style={styles.alertSendText}>Envoyer l'alerte</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal rapport */}
       <Modal visible={showRapportModal} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
@@ -407,8 +446,20 @@ const EMERALD = "#10b981";
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9fafb" },
   header: { backgroundColor: EMERALD, padding: 16, paddingTop: 20 },
+  backBtn: { marginBottom: 6 },
+  backBtnText: { color: "#d1fae5", fontSize: 13, fontWeight: "600" },
   headerTitle: { color: "white", fontWeight: "800", fontSize: 17 },
   headerSub: { color: "#d1fae5", fontSize: 12, marginTop: 2 },
+  alertOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
+  alertBox: { backgroundColor: "white", borderRadius: 20, padding: 24 },
+  alertTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 4 },
+  alertSub: { color: "#6b7280", fontSize: 14, marginBottom: 12 },
+  alertInput: { backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 10, padding: 12, fontSize: 14, color: "#111", minHeight: 80, textAlignVertical: "top", marginBottom: 16 },
+  alertBtns: { flexDirection: "row", gap: 10 },
+  alertCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#e5e7eb", alignItems: "center" },
+  alertCancelText: { color: "#6b7280", fontWeight: "600" },
+  alertSend: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#ef4444", alignItems: "center" },
+  alertSendText: { color: "white", fontWeight: "700" },
   phases: { flexDirection: "row", backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
   phaseBtn: { flex: 1, alignItems: "center", paddingVertical: 8 },
   phaseBtnActive: { borderBottomWidth: 2, borderBottomColor: EMERALD },
