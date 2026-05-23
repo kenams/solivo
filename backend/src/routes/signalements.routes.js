@@ -1,5 +1,5 @@
 const express = require("express");
-const { db } = require("../config/db");
+const { supabase, supa } = require("../config/supabase");
 const { authRequired, optionalAuth } = require("../middleware/auth");
 const { addPoints } = require("../services/users.service");
 
@@ -8,22 +8,20 @@ const router = express.Router();
 router.get("/", optionalAuth, async (req, res, next) => {
   try {
     const { status = "pending", lat, lng, radius = 10 } = req.query;
-    let q = db("signalements").where({ status }).orderBy("created_at", "desc").limit(100);
 
+    let signalements;
     if (lat && lng) {
-      const latF = parseFloat(lat), lngF = parseFloat(lng), r = parseFloat(radius);
-      q = q.whereRaw(
-        `(6371 * acos(cos(radians(?)) * cos(radians(lat)) * cos(radians(lng) - radians(?)) + sin(radians(?)) * sin(radians(lat)))) < ?`,
-        [latF, lngF, latF, r]
-      );
+      const { data } = await supabase.rpc("sp_signalements_nearby", {
+        p_lat: parseFloat(lat), p_lng: parseFloat(lng),
+        p_radius: parseFloat(radius), p_status: status,
+      });
+      signalements = data || [];
+    } else {
+      const { data } = await supabase.from("signalements").select("*").eq("status", status).order("created_at", { ascending: false }).limit(100);
+      signalements = data || [];
     }
 
-    const signalements = await q;
-    // Masquer reported_by si anonymous
-    return res.json(signalements.map(s => ({
-      ...s,
-      reported_by: s.anonymous ? null : s.reported_by,
-    })));
+    return res.json(signalements.map(s => ({ ...s, reported_by: s.anonymous ? null : s.reported_by })));
   } catch (err) { next(err); }
 });
 
@@ -32,23 +30,19 @@ router.post("/", optionalAuth, async (req, res, next) => {
     const { type, description, lat, lng, address, city, anonymous = true, photo_url } = req.body;
     if (!type || !lat || !lng) return res.status(400).json({ error: "missing_fields" });
 
-    const [sig] = await db("signalements")
-      .insert({
-        type, description, lat, lng, address, city, anonymous,
-        photo_url,
-        reported_by: anonymous ? null : (req.user?.sub || null),
-      })
-      .returning("*");
+    const sig = await supa(supabase.from("signalements").insert({
+      type, description, lat, lng, address, city, anonymous, photo_url,
+      reported_by: anonymous ? null : (req.user?.sub || null),
+    }).select().single());
 
     if (req.user && !anonymous) await addPoints(req.user.sub, 5);
-
     return res.status(201).json(sig);
   } catch (err) { next(err); }
 });
 
 router.patch("/:id/upvote", optionalAuth, async (req, res, next) => {
   try {
-    await db("signalements").where({ id: req.params.id }).increment("upvotes", 1);
+    await supabase.rpc("sp_increment_field", { p_table: "signalements", p_id: req.params.id, p_column: "upvotes", p_amount: 1 });
     return res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -58,7 +52,7 @@ router.patch("/:id/status", authRequired, async (req, res, next) => {
     const { status } = req.body;
     if (!["pending", "assigned", "resolved", "invalid"].includes(status))
       return res.status(400).json({ error: "invalid_status" });
-    await db("signalements").where({ id: req.params.id }).update({ status });
+    await supabase.from("signalements").update({ status }).eq("id", req.params.id);
     return res.json({ ok: true });
   } catch (err) { next(err); }
 });

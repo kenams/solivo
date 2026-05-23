@@ -1,38 +1,36 @@
-const { db } = require("../config/db");
+const { supabase, supa } = require("../config/supabase");
 const { hashPassword, verifyPassword } = require("../utils/crypto");
 
 async function findUserByEmail(email) {
-  return db("users").whereRaw("LOWER(email) = ?", [email.toLowerCase()]).first();
+  const { data } = await supabase.from("users").select("*").ilike("email", email.toLowerCase()).maybeSingle();
+  return data;
 }
 
 async function findUserById(id) {
-  return db("users").where({ id }).first();
+  const { data } = await supabase.from("users").select("*").eq("id", id).maybeSingle();
+  return data;
 }
 
 async function createUser({ email, password, name, role = "user" }) {
-  const [user] = await db("users")
-    .insert({ email, password_hash: hashPassword(password), name, role })
-    .returning("*");
-  return user;
+  return supa(supabase.from("users").insert({ email, password_hash: hashPassword(password), name, role }).select().single());
 }
 
 async function updateUser(id, data) {
-  const [user] = await db("users").where({ id }).update({ ...data, updated_at: new Date() }).returning("*");
-  return user;
+  return supa(supabase.from("users").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id).select().single());
 }
 
 async function addPoints(userId, points) {
-  await db("users").where({ id: userId }).increment("points", points);
+  await supabase.rpc("sp_increment_field", { p_table: "users", p_id: userId, p_column: "points", p_amount: points });
   await checkBadges(userId);
 }
 
 async function checkBadges(userId) {
   const user = await findUserById(userId);
   if (!user) return;
-  const earned = await db("badges").where({ user_id: userId }).pluck("badge_key");
+  const { data: earned_ } = await supabase.from("badges").select("badge_key").eq("user_id", userId);
+  const earned = (earned_ || []).map(r => r.badge_key);
 
   const toEarn = [];
-
   if (user.maraudes_count >= 1 && !earned.includes("first_maraude"))
     toEarn.push({ user_id: userId, badge_key: "first_maraude", name: "Première Maraude", description: "Participé à votre première maraude", icon: "🌟" });
   if (user.maraudes_count >= 5 && !earned.includes("maraude_5"))
@@ -46,7 +44,7 @@ async function checkBadges(userId) {
   if (user.points >= 100 && !earned.includes("points_100"))
     toEarn.push({ user_id: userId, badge_key: "points_100", name: "Impact Réel", description: "100 points d'impact", icon: "⚡" });
 
-  if (toEarn.length > 0) await db("badges").insert(toEarn);
+  if (toEarn.length > 0) await supabase.from("badges").insert(toEarn);
 }
 
 module.exports = { findUserByEmail, findUserById, createUser, updateUser, addPoints, checkBadges, verifyPassword };

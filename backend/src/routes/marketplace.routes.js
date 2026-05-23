@@ -1,6 +1,6 @@
 const express = require("express");
 const Stripe = require("stripe");
-const { db } = require("../config/db");
+const { supabase, supa } = require("../config/supabase");
 const { authRequired } = require("../middleware/auth");
 const { env } = require("../config/env");
 
@@ -10,20 +10,17 @@ function getStripe() {
   return new Stripe(env.stripeSecretKey, { apiVersion: "2024-04-10" });
 }
 
-// ── INVENDUS ENRICHIS ────────────────────────────────────────────────────────
-
 router.post("/invendus", authRequired, async (req, res, next) => {
   try {
-    const { commerce_id, title, description, quantity, unit, available_until, category, weight_kg, photo_url } = req.body;
+    const { commerce_id, title, description, quantity, unit, available_until } = req.body;
     if (!commerce_id || !title) return res.status(400).json({ error: "missing_fields" });
 
-    const commerce = await db("commerces").where({ id: commerce_id }).first();
+    const { data: commerce } = await supabase.from("commerces").select("id").eq("id", commerce_id).maybeSingle();
     if (!commerce) return res.status(404).json({ error: "commerce_not_found" });
 
-    const [inv] = await db("invendus")
+    const inv = await supa(supabase.from("invendus")
       .insert({ commerce_id, title, description, quantity, unit, available_until })
-      .returning("*");
-
+      .select().single());
     return res.status(201).json(inv);
   } catch (err) { next(err); }
 });
@@ -32,59 +29,48 @@ router.get("/invendus", async (req, res, next) => {
   try {
     const { lat, lng, radius = 20, limit = 50 } = req.query;
 
-    let q = db("invendus as i")
-      .join("commerces as c", "i.commerce_id", "c.id")
-      .select(
-        "i.id", "i.title", "i.description", "i.quantity", "i.unit", "i.available_until", "i.status", "i.created_at",
-        "c.id as commerce_id", "c.name as commerce_name", "c.type as commerce_type",
-        "c.lat", "c.lng", "c.city", "c.address", "c.phone as commerce_phone"
-      )
-      .where("i.status", "available")
-      .whereRaw("(i.available_until IS NULL OR i.available_until > NOW())")
-      .where("c.active", true)
-      .orderBy("i.created_at", "desc")
-      .limit(parseInt(limit));
-
     if (lat && lng) {
-      const latF = parseFloat(lat), lngF = parseFloat(lng), r = parseFloat(radius);
-      q = q.whereRaw(
-        `(6371 * acos(LEAST(1, cos(radians(?)) * cos(radians(c.lat)) * cos(radians(c.lng) - radians(?)) + sin(radians(?)) * sin(radians(c.lat))))) < ?`,
-        [latF, lngF, latF, r]
-      );
+      const { data } = await supabase.rpc("sp_invendus_nearby", {
+        p_lat: parseFloat(lat), p_lng: parseFloat(lng),
+        p_radius: parseFloat(radius), p_limit: parseInt(limit),
+      });
+      return res.json(data || []);
     }
 
-    const invendus = await q;
-    return res.json(invendus);
+    const { data } = await supabase.from("invendus")
+      .select("*, commerces!commerce_id(id, name, type, lat, lng, city, address, phone)")
+      .eq("status", "available")
+      .or(`available_until.is.null,available_until.gt.${new Date().toISOString()}`)
+      .order("created_at", { ascending: false }).limit(parseInt(limit));
+
+    return res.json((data || []).map(i => ({
+      ...i, commerce_id: i.commerces?.id, commerce_name: i.commerces?.name,
+      commerce_type: i.commerces?.type, lat: i.commerces?.lat, lng: i.commerces?.lng,
+      city: i.commerces?.city, address: i.commerces?.address, commerce_phone: i.commerces?.phone,
+      commerces: undefined,
+    })));
   } catch (err) { next(err); }
 });
-
-// ── DEMANDES DE COLLECTE ─────────────────────────────────────────────────────
 
 router.post("/collecte-requests", authRequired, async (req, res, next) => {
   try {
     const { invenu_id, association_id, pickup_scheduled_at, collector_name, collector_phone, note_association } = req.body;
     if (!invenu_id || !association_id) return res.status(400).json({ error: "missing_fields" });
 
-    const invenu = await db("invendus").where({ id: invenu_id, status: "available" }).first();
+    const { data: invenu } = await supabase.from("invendus").select("*").eq("id", invenu_id).eq("status", "available").maybeSingle();
     if (!invenu) return res.status(400).json({ error: "invenu_unavailable" });
 
-    const existing = await db("collecte_requests").where({ invenu_id, status: "pending" }).first();
+    const { data: existing } = await supabase.from("collecte_requests").select("id").eq("invenu_id", invenu_id).eq("status", "pending").maybeSingle();
     if (existing) return res.status(409).json({ error: "already_requested" });
 
-    const sub = await db("commerce_subscriptions").where({ commerce_id: invenu.commerce_id }).first();
+    const { data: sub } = await supabase.from("commerce_subscriptions").select("commission_rate_cents").eq("commerce_id", invenu.commerce_id).maybeSingle();
     const commission_cents = sub?.commission_rate_cents ?? 150;
 
-    const [req_] = await db("collecte_requests")
-      .insert({
-        invenu_id, commerce_id: invenu.commerce_id, association_id,
-        requested_by: req.user.sub, pickup_scheduled_at,
-        collector_name, collector_phone, note_association,
-        commission_cents,
-      })
-      .returning("*");
+    const req_ = await supa(supabase.from("collecte_requests")
+      .insert({ invenu_id, commerce_id: invenu.commerce_id, association_id, requested_by: req.user.sub, pickup_scheduled_at, collector_name, collector_phone, note_association, commission_cents })
+      .select().single());
 
-    await db("invendus").where({ id: invenu_id }).update({ status: "reserved", reserved_by: association_id });
-
+    await supabase.from("invendus").update({ status: "reserved", reserved_by: association_id }).eq("id", invenu_id);
     return res.status(201).json(req_);
   } catch (err) { next(err); }
 });
@@ -92,31 +78,27 @@ router.post("/collecte-requests", authRequired, async (req, res, next) => {
 router.get("/collecte-requests/mes", authRequired, async (req, res, next) => {
   try {
     const { association_id } = req.query;
-    const requests = await db("collecte_requests as cr")
-      .join("invendus as i", "cr.invenu_id", "i.id")
-      .join("commerces as c", "cr.commerce_id", "c.id")
-      .leftJoin("associations as a", "cr.association_id", "a.id")
-      .select(
-        "cr.*",
-        "i.title as invenu_title", "i.quantity", "i.unit",
-        "c.name as commerce_name", "c.address as commerce_address", "c.phone as commerce_phone",
-        "a.name as association_name"
-      )
-      .where("cr.association_id", association_id)
-      .orderBy("cr.created_at", "desc");
-    return res.json(requests);
+    const { data } = await supabase.from("collecte_requests")
+      .select("*, invendus!invenu_id(title, quantity, unit), commerces!commerce_id(name, address, phone), associations!association_id(name)")
+      .eq("association_id", association_id).order("created_at", { ascending: false });
+    return res.json((data || []).map(r => ({
+      ...r, invenu_title: r.invendus?.title, quantity: r.invendus?.quantity, unit: r.invendus?.unit,
+      commerce_name: r.commerces?.name, commerce_address: r.commerces?.address, commerce_phone: r.commerces?.phone,
+      association_name: r.associations?.name, invendus: undefined, commerces: undefined, associations: undefined,
+    })));
   } catch (err) { next(err); }
 });
 
 router.get("/collecte-requests/commerce/:commerce_id", authRequired, async (req, res, next) => {
   try {
-    const requests = await db("collecte_requests as cr")
-      .join("invendus as i", "cr.invenu_id", "i.id")
-      .join("associations as a", "cr.association_id", "a.id")
-      .select("cr.*", "i.title as invenu_title", "i.quantity", "i.unit", "a.name as association_name", "a.phone as association_phone")
-      .where("cr.commerce_id", req.params.commerce_id)
-      .orderBy("cr.created_at", "desc");
-    return res.json(requests);
+    const { data } = await supabase.from("collecte_requests")
+      .select("*, invendus!invenu_id(title, quantity, unit), associations!association_id(name, phone)")
+      .eq("commerce_id", req.params.commerce_id).order("created_at", { ascending: false });
+    return res.json((data || []).map(r => ({
+      ...r, invenu_title: r.invendus?.title, quantity: r.invendus?.quantity, unit: r.invendus?.unit,
+      association_name: r.associations?.name, association_phone: r.associations?.phone,
+      invendus: undefined, associations: undefined,
+    })));
   } catch (err) { next(err); }
 });
 
@@ -125,15 +107,13 @@ router.patch("/collecte-requests/:id/status", authRequired, async (req, res, nex
     const { status, note_commerce } = req.body;
     if (!["accepted", "rejected"].includes(status)) return res.status(400).json({ error: "invalid_status" });
 
-    const cr = await db("collecte_requests").where({ id: req.params.id }).first();
+    const { data: cr } = await supabase.from("collecte_requests").select("*").eq("id", req.params.id).maybeSingle();
     if (!cr) return res.status(404).json({ error: "not_found" });
 
-    await db("collecte_requests").where({ id: req.params.id }).update({ status, note_commerce });
-
+    await supabase.from("collecte_requests").update({ status, note_commerce }).eq("id", req.params.id);
     if (status === "rejected") {
-      await db("invendus").where({ id: cr.invenu_id }).update({ status: "available", reserved_by: null });
+      await supabase.from("invendus").update({ status: "available", reserved_by: null }).eq("id", cr.invenu_id);
     }
-
     return res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -141,102 +121,55 @@ router.patch("/collecte-requests/:id/status", authRequired, async (req, res, nex
 router.post("/collecte-requests/:id/confirm", authRequired, async (req, res, next) => {
   try {
     const { quantity_collected, photo_url } = req.body;
-    const cr = await db("collecte_requests").where({ id: req.params.id }).first();
+    const { data: cr } = await supabase.from("collecte_requests").select("*").eq("id", req.params.id).maybeSingle();
     if (!cr) return res.status(404).json({ error: "not_found" });
 
-    await db("collecte_requests").where({ id: req.params.id }).update({
-      status: "collected", collected_at: new Date(), quantity_collected, photo_url,
-    });
-    await db("invendus").where({ id: cr.invenu_id }).update({ status: "collected" });
+    await supabase.from("collecte_requests").update({ status: "collected", collected_at: new Date().toISOString(), quantity_collected, photo_url }).eq("id", req.params.id);
+    await supabase.from("invendus").update({ status: "collected" }).eq("id", cr.invenu_id);
 
-    await db("commerce_subscriptions")
-      .where({ commerce_id: cr.commerce_id })
-      .increment("total_pickups", 1)
-      .increment("monthly_pickups", 1);
+    await supabase.rpc("sp_increment_field", { p_table: "commerce_subscriptions", p_id: cr.commerce_id, p_column: "total_pickups", p_amount: 1 });
+    await supabase.rpc("sp_increment_field", { p_table: "commerce_subscriptions", p_id: cr.commerce_id, p_column: "monthly_pickups", p_amount: 1 });
 
     if (cr.commission_cents > 0 && env.stripeSecretKey) {
       try {
         const stripe = getStripe();
-        const sub = await db("commerce_subscriptions").where({ commerce_id: cr.commerce_id }).first();
+        const { data: sub } = await supabase.from("commerce_subscriptions").select("stripe_customer_id").eq("commerce_id", cr.commerce_id).maybeSingle();
         if (sub?.stripe_customer_id) {
           const pi = await stripe.paymentIntents.create({
-            amount: cr.commission_cents,
-            currency: "eur",
-            customer: sub.stripe_customer_id,
+            amount: cr.commission_cents, currency: "eur", customer: sub.stripe_customer_id,
             description: `Solivo — Commission collecte #${cr.id.slice(0, 8)}`,
             metadata: { collecte_request_id: cr.id, commerce_id: cr.commerce_id },
           });
-          await db("collecte_requests").where({ id: cr.id }).update({
-            stripe_payment_intent_commission: pi.id,
-            commission_status: "pending",
-          });
+          await supabase.from("collecte_requests").update({ stripe_payment_intent_commission: pi.id, commission_status: "pending" }).eq("id", cr.id);
         }
       } catch {}
     }
 
-    await db("associations").where({ id: cr.association_id }).increment("beneficiaries_count", 1);
-
+    await supabase.rpc("sp_increment_field", { p_table: "associations", p_id: cr.association_id, p_column: "beneficiaries_count", p_amount: 1 });
     return res.json({ ok: true, message: "Collecte confirmée" });
   } catch (err) { next(err); }
 });
 
-// ── IMPACT REPORT COMMERCE ───────────────────────────────────────────────────
-
 router.get("/impact/:commerce_id", async (req, res, next) => {
   try {
-    const commerce = await db("commerces").where({ id: req.params.commerce_id }).first();
+    const { data: commerce } = await supabase.from("commerces").select("name").eq("id", req.params.commerce_id).maybeSingle();
     if (!commerce) return res.status(404).json({ error: "not_found" });
 
-    const sub = await db("commerce_subscriptions").where({ commerce_id: req.params.commerce_id }).first();
-    const collectes = await db("collecte_requests")
-      .where({ commerce_id: req.params.commerce_id, status: "collected" })
-      .count("id as count").first();
+    const { data: sub } = await supabase.from("commerce_subscriptions").select("plan").eq("commerce_id", req.params.commerce_id).maybeSingle();
+    const { data: impact } = await supabase.rpc("sp_commerce_impact", { p_commerce_id: req.params.commerce_id });
 
-    const totalKg = await db("collecte_requests as cr")
-      .join("invendus as i", "cr.invenu_id", "i.id")
-      .where({ "cr.commerce_id": req.params.commerce_id, "cr.status": "collected" })
-      .sum("cr.quantity_collected as total").first();
-
-    const total = parseInt(collectes?.count || "0");
-    const kg = parseFloat(totalKg?.total || "0");
-
-    const assosHelped = await db("collecte_requests")
-      .where({ commerce_id: req.params.commerce_id, status: "collected" })
-      .countDistinct("association_id as count").first();
-
-    const commTotal = await db("collecte_requests")
-      .where({ commerce_id: req.params.commerce_id, status: "collected" })
-      .sum("commission_cents as total").first();
-
-    const monthly = await db("collecte_requests")
-      .where({ commerce_id: req.params.commerce_id, status: "collected" })
-      .whereRaw("created_at > NOW() - INTERVAL '30 days'")
-      .count("id as count").first();
-
-    return res.json({
-      commerce_name: commerce.name,
-      plan: sub?.plan || "free",
-      total_pickups: total,
-      kg_saved: kg,
-      meals_equivalent: Math.round(kg * 2.5),
-      co2_saved_kg: Math.round(kg * 2.5),
-      associations_helped: parseInt(assosHelped?.count || "0"),
-      commission_total_cents: parseInt(commTotal?.total || "0"),
-      monthly: parseInt(monthly?.count || "0"),
-    });
+    return res.json({ commerce_name: commerce.name, plan: sub?.plan || "free", ...impact });
   } catch (err) { next(err); }
 });
-
-// ── ONBOARDING COMMERCE ──────────────────────────────────────────────────────
 
 router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
   try {
     const { name, address, lat, lng, city, phone, email, type, siret } = req.body;
     if (!name) return res.status(400).json({ error: "name_required" });
 
-    const [commerce] = await db("commerces")
+    const commerce = await supa(supabase.from("commerces")
       .insert({ name, address, lat, lng, city, phone, email, type, owner_id: req.user.sub })
-      .returning("*");
+      .select().single());
 
     let stripeCustomerId = null;
     if (env.stripeSecretKey && email) {
@@ -247,14 +180,8 @@ router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
       } catch {}
     }
 
-    await db("commerce_subscriptions").insert({
-      commerce_id: commerce.id,
-      plan: "free",
-      commission_rate_cents: 150,
-      stripe_customer_id: stripeCustomerId,
-    });
-
-    await db("users").where({ id: req.user.sub }).update({ role: "commerce" });
+    await supabase.from("commerce_subscriptions").insert({ commerce_id: commerce.id, plan: "free", commission_rate_cents: 150, stripe_customer_id: stripeCustomerId });
+    await supabase.from("users").update({ role: "commerce" }).eq("id", req.user.sub);
 
     return res.status(201).json({ commerce, message: "Compte commerce créé avec succès" });
   } catch (err) { next(err); }
@@ -262,20 +189,8 @@ router.post("/onboarding/commerce", authRequired, async (req, res, next) => {
 
 router.get("/stats", async (req, res, next) => {
   try {
-    const collectes = await db("collecte_requests").where({ status: "collected" }).count("id as count").first();
-    const commerces = await db("commerces").where({ active: true }).count("id as count").first();
-    const associations = await db("associations").count("id as count").first();
-    const invendus = await db("invendus").count("id as count").first();
-    const kgSaved = await db("collecte_requests").where({ status: "collected" }).sum("quantity_collected as total").first();
-
-    return res.json({
-      collectes_confirmees: parseInt(collectes?.count || "0"),
-      commerces_partenaires: parseInt(commerces?.count || "0"),
-      associations_actives: parseInt(associations?.count || "0"),
-      invendus_publies: parseInt(invendus?.count || "0"),
-      kg_sauves: parseFloat(kgSaved?.total || "0"),
-      repas_equivalents: Math.round(parseFloat(kgSaved?.total || "0") * 2.5),
-    });
+    const { data } = await supabase.rpc("sp_platform_stats");
+    return res.json(data);
   } catch (err) { next(err); }
 });
 

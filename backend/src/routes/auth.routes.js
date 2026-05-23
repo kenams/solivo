@@ -4,7 +4,7 @@ const { z } = require("zod");
 const { env } = require("../config/env");
 const { findUserByEmail, findUserById, createUser, verifyPassword } = require("../services/users.service");
 const { authRequired } = require("../middleware/auth");
-const { db } = require("../config/db");
+const { supabase } = require("../config/supabase");
 const crypto = require("crypto");
 
 const router = express.Router();
@@ -70,8 +70,8 @@ router.get("/me", authRequired, async (req, res, next) => {
   try {
     const user = await findUserById(req.user.sub);
     if (!user) return res.status(404).json({ error: "not_found" });
-    const badges = await db("badges").where({ user_id: user.id }).orderBy("created_at", "desc");
-    return res.json({ ...user, password_hash: undefined, badges });
+    const { data: badges } = await supabase.from("badges").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    return res.json({ ...user, password_hash: undefined, badges: badges || [] });
   } catch (err) { next(err); }
 });
 
@@ -82,10 +82,10 @@ router.post("/forgot-password", async (req, res, next) => {
     const user = await findUserByEmail(email);
     if (user) {
       const token = crypto.randomBytes(32).toString("hex");
-      await db("users").where({ id: user.id }).update({
+      await supabase.from("users").update({
         reset_token: token,
-        reset_token_expires: new Date(Date.now() + 3600 * 1000),
-      });
+        reset_token_expires: new Date(Date.now() + 3600 * 1000).toISOString(),
+      }).eq("id", user.id);
     }
     return res.json({ ok: true });
   } catch (err) { next(err); }
