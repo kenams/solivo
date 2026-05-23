@@ -1,0 +1,11 @@
+"use client";
+import { usePathname } from "next/navigation";
+import { Footer } from "./Footer";
+
+const NO_FOOTER = ["/carte"];
+
+export function ConditionalFooter() {
+  const pathname = usePathname();
+  if (NO_FOOTER.some(p => pathname.startsWith(p))) return null;
+  return <Footer />;
+}
