@@ -112,8 +112,8 @@ export function MapView({ filters }: { filters: Filters }) {
         preferCanvas: true,
       }).setView([46.8, 2.3], 6);
 
-      // Dark tile — CartoDB Dark Matter
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      // CartoDB Voyager — fond clair, eau bleue, parcs verts, très lisible
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 20,
@@ -233,11 +233,11 @@ export function MapView({ filters }: { filters: Filters }) {
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
       {/* Map */}
-      <div ref={mapRef} className="w-full h-full" style={{ background: "#0d1117" }} />
+      <div ref={mapRef} className="w-full h-full" style={{ background: "#e8e0d8" }} />
 
       {/* Loading overlay */}
       {!data && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]/80 backdrop-blur-sm pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#e8e0d8]/80 backdrop-blur-sm pointer-events-none">
           <div className="flex flex-col items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
               <MapPin className="text-emerald-400 animate-pulse" size={22} />
