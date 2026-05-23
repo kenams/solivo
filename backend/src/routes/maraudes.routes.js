@@ -107,6 +107,14 @@ router.delete("/:id/join", authRequired, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.post("/:id/leave", authRequired, async (req, res, next) => {
+  try {
+    await supabase.from("maraude_participants").delete().eq("maraude_id", req.params.id).eq("user_id", req.user.sub);
+    await supabase.rpc("sp_increment_field", { p_table: "maraudes", p_id: req.params.id, p_column: "volunteers_count", p_amount: -1 });
+    return res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.patch("/:id/complete", authRequired, async (req, res, next) => {
   try {
     const { data: maraude } = await supabase.from("maraudes").select("id, created_by").eq("id", req.params.id).maybeSingle();
