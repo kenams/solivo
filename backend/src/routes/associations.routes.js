@@ -58,7 +58,7 @@ router.post("/:id/connect/onboarding", authRequired, async (req, res, next) => {
         type: "express",
         country: "FR",
         email: asso.email || undefined,
-        capabilities: { transfers: { requested: true } },
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
         business_type: "non_profit",
         metadata: { association_id: asso.id },
       });
