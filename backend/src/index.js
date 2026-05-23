@@ -80,8 +80,8 @@ async function runMigrations() {
     await db.migrate.latest({ directory: "./src/migrations" });
     console.log("✅ Migrations OK");
   } catch (err) {
-    console.error("❌ Migration échouée :", err);
-    process.exit(1);
+    // Ne pas crasher — laisser le serveur démarrer même si DB inaccessible
+    console.error("⚠️ Migration warning (non-fatal):", err.message);
   }
 }
 
