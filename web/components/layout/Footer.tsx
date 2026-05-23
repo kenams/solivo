@@ -2,42 +2,79 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 py-12">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          <div>
-            <div className="text-2xl font-black text-white mb-2">🤝 Solivo</div>
-            <p className="text-sm leading-relaxed">Solidarité locale, impact mondial. La plateforme collaborative de maraudes et d'entraide sociale.</p>
+    <footer className="bg-[#040b16] text-white/40 border-t border-white/[0.04]">
+      <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-10 mb-12">
+          {/* Brand */}
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-base shadow-lg">🤝</div>
+              <span className="text-xl font-black text-white">Solivo</span>
+            </div>
+            <p className="text-sm leading-relaxed mb-6 max-w-xs">
+              Solidarité locale, impact mondial. La plateforme collaborative de maraudes et d&apos;entraide sociale.
+            </p>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] w-fit">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+              <span className="text-xs text-emerald-400 font-medium">Plateforme active</span>
+            </div>
           </div>
+
+          {/* Links */}
           <div>
-            <h4 className="text-white font-semibold mb-3">Plateforme</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/carte" className="hover:text-white transition">Carte interactive</Link></li>
-              <li><Link href="/maraudes" className="hover:text-white transition">Maraudes</Link></li>
-              <li><Link href="/signalement" className="hover:text-white transition">Signalement</Link></li>
-              <li><Link href="/don" className="hover:text-white transition">Faire un don</Link></li>
-              <li><Link href="/transparence" className="hover:text-white transition">Transparence</Link></li>
+            <h4 className="text-white/80 font-bold text-sm mb-4 uppercase tracking-wider">Plateforme</h4>
+            <ul className="space-y-3 text-sm">
+              {[
+                { href: "/carte", label: "Carte interactive" },
+                { href: "/maraudes", label: "Maraudes" },
+                { href: "/invendus", label: "Invendus" },
+                { href: "/don", label: "Faire un don" },
+                { href: "/transparence", label: "Transparence" },
+              ].map(l => (
+                <li key={l.href}><Link href={l.href} className="hover:text-white transition-colors">{l.label}</Link></li>
+              ))}
             </ul>
           </div>
+
           <div>
-            <h4 className="text-white font-semibold mb-3">Communauté</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/associations" className="hover:text-white transition">Associations</Link></li>
-              <li><Link href="/leaderboard" className="hover:text-white transition">Classement</Link></li>
-              <li><Link href="/inscription" className="hover:text-white transition">Rejoindre</Link></li>
+            <h4 className="text-white/80 font-bold text-sm mb-4 uppercase tracking-wider">Rejoindre</h4>
+            <ul className="space-y-3 text-sm">
+              {[
+                { href: "/inscription", label: "Créer un compte" },
+                { href: "/associations/creer", label: "Mon association" },
+                { href: "/partenaires/commerce", label: "Devenir partenaire" },
+                { href: "/leaderboard", label: "Classement" },
+                { href: "/signalement", label: "Signalement" },
+              ].map(l => (
+                <li key={l.href}><Link href={l.href} className="hover:text-white transition-colors">{l.label}</Link></li>
+              ))}
             </ul>
           </div>
+
           <div>
-            <h4 className="text-white font-semibold mb-3">Légal</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/mentions-legales" className="hover:text-white transition">Mentions légales</Link></li>
-              <li><Link href="/confidentialite" className="hover:text-white transition">Confidentialité</Link></li>
-              <li><Link href="/cgu" className="hover:text-white transition">CGU</Link></li>
+            <h4 className="text-white/80 font-bold text-sm mb-4 uppercase tracking-wider">Légal</h4>
+            <ul className="space-y-3 text-sm">
+              {[
+                { href: "/mentions-legales", label: "Mentions légales" },
+                { href: "/confidentialite", label: "Confidentialité" },
+                { href: "/cgu", label: "CGU" },
+              ].map(l => (
+                <li key={l.href}><Link href={l.href} className="hover:text-white transition-colors">{l.label}</Link></li>
+              ))}
             </ul>
           </div>
         </div>
-        <div className="border-t border-gray-800 pt-6 text-center text-sm">
-          © {new Date().getFullYear()} Solivo — Ensemble, on change le quartier.
+
+        <div className="border-t border-white/[0.06] pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm">© {new Date().getFullYear()} Solivo — Ensemble, on change le quartier.</p>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="flex items-center gap-1.5">
+              <span className="text-emerald-400">⚡</span>
+              Propulsé par Stripe Connect
+            </span>
+            <span className="w-1 h-1 bg-white/20 rounded-full" />
+            <span>🔒 RGPD compliant</span>
+          </div>
         </div>
       </div>
     </footer>
