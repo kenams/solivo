@@ -10,22 +10,35 @@ function getStripe() {
   return new Stripe(env.stripeSecretKey, { apiVersion: "2024-04-10" });
 }
 
-// Créer une session de don
+// Créer une session de don (avec contribution volontaire + Stripe Connect)
 router.post("/checkout", optionalAuth, async (req, res, next) => {
   try {
-    const { amount, anonymous = false, message, association_id, recurring = false } = req.body;
+    const { amount, anonymous = false, message, association_id, recurring = false, contribution_percent = 0 } = req.body;
     if (!amount || amount < 100) return res.status(400).json({ error: "min_amount_100_cents" });
 
+    const pct = Math.max(0, Math.min(30, parseInt(contribution_percent) || 0));
+    const platformFee = Math.round(amount * pct / 100);
+
     const stripe = getStripe();
+
+    let connectId = null;
+    if (association_id) {
+      const asso = await db("associations").where({ id: association_id, stripe_connect_status: "active" }).first();
+      connectId = asso?.stripe_connect_id || null;
+    }
+
     const metadata = {
       donor_id: req.user?.sub || "anonymous",
       anonymous: String(anonymous),
       association_id: association_id || "",
       message: message || "",
       recurring: String(recurring),
+      contribution_percent: String(pct),
+      platform_fee_cents: String(platformFee),
     };
 
     let session;
+
     if (recurring) {
       const price = await stripe.prices.create({
         unit_amount: amount,
@@ -33,7 +46,7 @@ router.post("/checkout", optionalAuth, async (req, res, next) => {
         recurring: { interval: "month" },
         product_data: { name: "Don mensuel Solivo" },
       });
-      session = await stripe.checkout.sessions.create({
+      const sessionParams = {
         mode: "subscription",
         payment_method_types: ["card"],
         line_items: [{ price: price.id, quantity: 1 }],
@@ -41,9 +54,16 @@ router.post("/checkout", optionalAuth, async (req, res, next) => {
         cancel_url: `${env.appUrl}/don`,
         metadata,
         customer_email: req.user?.email,
-      });
+      };
+      if (connectId && pct > 0) {
+        sessionParams.subscription_data = {
+          application_fee_percent: pct,
+          transfer_data: { destination: connectId },
+        };
+      }
+      session = await stripe.checkout.sessions.create(sessionParams);
     } else {
-      session = await stripe.checkout.sessions.create({
+      const sessionParams = {
         mode: "payment",
         payment_method_types: ["card"],
         line_items: [{
@@ -58,7 +78,14 @@ router.post("/checkout", optionalAuth, async (req, res, next) => {
         cancel_url: `${env.appUrl}/don`,
         metadata,
         customer_email: req.user?.email,
-      });
+      };
+      if (connectId) {
+        sessionParams.payment_intent_data = {
+          application_fee_amount: platformFee,
+          transfer_data: { destination: connectId },
+        };
+      }
+      session = await stripe.checkout.sessions.create(sessionParams);
     }
 
     await db("donations").insert({
@@ -72,6 +99,8 @@ router.post("/checkout", optionalAuth, async (req, res, next) => {
       recurring_interval: recurring ? "month" : null,
       association_id: association_id || null,
       message: message || null,
+      contribution_percent: pct,
+      platform_fee_cents: platformFee,
     });
 
     return res.json({ url: session.url, session_id: session.id });
@@ -95,7 +124,6 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
         status: "completed",
         stripe_payment_intent: session.payment_intent,
       });
-
       const donation = await db("donations").where({ stripe_session_id: session.id }).first();
       if (donation?.donor_id) {
         await db("users").where({ id: donation.donor_id }).increment("total_donations", donation.amount_cents);
@@ -117,6 +145,7 @@ router.get("/public", async (req, res, next) => {
       .select(
         "d.id", "d.amount_cents", "d.currency", "d.created_at",
         "d.anonymous", "d.message", "d.recurring",
+        "d.contribution_percent", "d.platform_fee_cents",
         db.raw("CASE WHEN d.anonymous THEN NULL ELSE u.name END as donor_name"),
         "a.name as association_name"
       )
@@ -126,12 +155,18 @@ router.get("/public", async (req, res, next) => {
 
     const total = await db("donations").where({ status: "completed" }).sum("amount_cents as total").first();
     const count = await db("donations").where({ status: "completed" }).count("id as count").first();
+    const platformTotal = await db("donations").where({ status: "completed" }).sum("platform_fee_cents as total").first();
 
-    return res.json({ donations, total_cents: total?.total || 0, count: count?.count || 0 });
+    return res.json({
+      donations,
+      total_cents: total?.total || 0,
+      count: count?.count || 0,
+      platform_collected_cents: platformTotal?.total || 0,
+    });
   } catch (err) { next(err); }
 });
 
-// Stats transparence détaillées
+// Stats transparence
 router.get("/stats", async (req, res, next) => {
   try {
     const totalDonations = await db("donations").where({ status: "completed" }).sum("amount_cents as total").first();
