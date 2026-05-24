@@ -1,94 +1,108 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
-import MapView, { Marker, Callout, PROVIDER_DEFAULT } from "react-native-maps";
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from "react-native";
+import { WebView } from "react-native-webview";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { api } from "../lib/api";
 
-interface MapPoint {
-  id: string;
-  lat: number;
-  lng: number;
-  _type: string;
-  title?: string;
-  name?: string;
-  type?: string;
-  date_start?: string;
-  volunteers_count?: number;
-  max_volunteers?: number;
-  description?: string;
-}
+interface MapPoint { id: string; lat: number; lng: number; _type: string; title?: string; name?: string; type?: string; description?: string; }
+interface MapData { maraudes: MapPoint[]; signalements: MapPoint[]; commerces: MapPoint[]; invendus: MapPoint[]; }
 
-interface MapData {
-  maraudes: MapPoint[];
-  signalements: MapPoint[];
-  commerces: MapPoint[];
-  invendus: MapPoint[];
+const COLORS: Record<string, string> = { maraude: "#10b981", signalement: "#ef4444", commerce: "#3b82f6", invenu: "#f59e0b" };
+const FILTERS = [
+  { key: null, label: "Tout", color: "#6b7280" },
+  { key: "maraude", label: "Maraudes", color: "#10b981" },
+  { key: "signalement", label: "Signalements", color: "#ef4444" },
+  { key: "commerce", label: "Commerces", color: "#3b82f6" },
+  { key: "invenu", label: "Invendus", color: "#f59e0b" },
+];
+
+function buildHtml(points: MapPoint[], lat?: number, lng?: number): string {
+  const markers = points.filter(p => p.lat && p.lng).map(p => {
+    const c = COLORS[p._type] || "#6b7280";
+    const label = (p.title || p.name || p._type).replace(/['"<>]/g, "");
+    const desc = (p.description || p.type || "").replace(/['"<>]/g, "");
+    return `L.circleMarker([${p.lat},${p.lng}],{radius:11,color:'${c}',fillColor:'${c}',fillOpacity:0.9,weight:2}).addTo(map).bindPopup('<b>${label}</b>${desc ? `<br/><span style="color:#666">${desc}</span>` : ""}')`;
+  }).join(";\n");
+  const me = lat && lng ? `L.circleMarker([${lat},${lng}],{radius:9,color:'#fff',fillColor:'#7c3aed',fillOpacity:1,weight:3}).addTo(map).bindPopup('<b>📍 Ma position</b>')` : "";
+  const cLat = lat || 46.6; const cLng = lng || 2.3; const zoom = lat ? 14 : 5;
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>*{margin:0;padding:0}html,body,#m{width:100%;height:100%;font-family:sans-serif}.leaflet-popup-content-wrapper{border-radius:10px}.leaflet-popup-content{font-size:13px;line-height:1.4}</style></head><body><div id="m"></div><script>var map=L.map('m',{zoomControl:true}).setView([${cLat},${cLng}],${zoom});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'}).addTo(map);${markers};${me};</script></body></html>`;
 }
 
 export function MapScreen() {
-  const [data, setData] = useState<MapData | null>(null);
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const insets = useSafeAreaInsets();
+  const [html, setHtml] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string | null>(null);
-  const mapRef = useRef<MapView>(null);
+  const [allPoints, setAllPoints] = useState<MapPoint[]>([]);
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    loadData();
-    requestLocation();
+    if (initialized.current) return;
+    initialized.current = true;
+    Promise.all([loadData(), locateUser()]);
   }, []);
+
+  async function locateUser() {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserPos({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      }
+    } catch {}
+    setLocating(false);
+    return null;
+  }
 
   async function loadData() {
     try {
-      const d = await api.get("/map");
-      setData(d);
-    } catch (e) {
-      console.error("Map load error:", e);
-    } finally {
-      setLoading(false);
-    }
+      const data: MapData = await api.get("/map");
+      const pts: MapPoint[] = [
+        ...(data.maraudes || []).map(m => ({ ...m, _type: "maraude" })),
+        ...(data.signalements || []).map(s => ({ ...s, _type: "signalement" })),
+        ...(data.commerces || []).map(c => ({ ...c, _type: "commerce" })),
+        ...(data.invendus || []).map(i => ({ ...i, _type: "invenu" })),
+      ];
+      setAllPoints(pts);
+      const pos = userPos;
+      setHtml(buildHtml(pts, pos?.lat, pos?.lng));
+    } catch { setHtml(buildHtml([])); }
+    finally { setLoading(false); setLocating(false); }
   }
 
-  async function requestLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-    setLocation(coords);
-    mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.1, longitudeDelta: 0.1 }, 1000);
-  }
-
-  const filters = [
-    { key: null, label: "Tout", emoji: "🌍" },
-    { key: "maraude", label: "Maraudes", emoji: "🚶" },
-    { key: "signalement", label: "Besoins", emoji: "⚠️" },
-    { key: "commerce", label: "Invendus", emoji: "🛒" },
-  ];
-
-  const allPoints = data ? [
-    ...(!filter || filter === "maraude" ? data.maraudes : []),
-    ...(!filter || filter === "signalement" ? data.signalements : []),
-    ...(!filter || filter === "commerce" ? data.commerces : []),
-  ] : [];
-
-  function markerColor(type: string) {
-    switch (type) {
-      case "maraude": return "#3b82f6";
-      case "signalement": return "#f97316";
-      case "commerce": return "#22c55e";
-      default: return "#6b7280";
+  useEffect(() => {
+    if (allPoints.length > 0 && userPos) {
+      const filtered = filter ? allPoints.filter(p => p._type === filter) : allPoints;
+      setHtml(buildHtml(filtered, userPos.lat, userPos.lng));
     }
+  }, [userPos]);
+
+  function applyFilter(type: string | null) {
+    setFilter(type);
+    const filtered = type ? allPoints.filter(p => p._type === type) : allPoints;
+    setHtml(buildHtml(filtered, userPos?.lat, userPos?.lng));
   }
 
   return (
     <View style={styles.container}>
       {/* Filtres */}
-      <View style={styles.filterBar}>
-        {filters.map(f => (
-          <TouchableOpacity key={String(f.key)} onPress={() => setFilter(f.key)}
-            style={[styles.filterBtn, filter === f.key && styles.filterBtnActive]}>
-            <Text style={styles.filterText}>{f.emoji} {f.label}</Text>
+      <View style={[styles.filterBar, { paddingTop: insets.top + 4 }]}>
+        <View style={styles.filterScroll}>
+          {FILTERS.map(f => (
+            <TouchableOpacity key={String(f.key)} onPress={() => applyFilter(f.key)}
+              style={[styles.filterChip, filter === f.key && { backgroundColor: f.color, borderColor: f.color }]}>
+              <Text style={[styles.filterText, filter === f.key && { color: "#fff" }]}>{f.label}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity onPress={locateUser} style={[styles.filterChip, styles.locateBtn]} disabled={locating}>
+            {locating ? <ActivityIndicator size="small" color="#7c3aed" /> : <Text style={styles.locateText}>📍 Me localiser</Text>}
           </TouchableOpacity>
-        ))}
+        </View>
       </View>
 
       {loading ? (
@@ -97,66 +111,46 @@ export function MapScreen() {
           <Text style={styles.loaderText}>Chargement de la carte...</Text>
         </View>
       ) : (
-        <MapView
-          ref={mapRef}
+        <WebView
+          source={{ html, baseUrl: "https://unpkg.com" }}
           style={styles.map}
-          provider={PROVIDER_DEFAULT}
-          initialRegion={{ latitude: 46.2276, longitude: 2.2137, latitudeDelta: 8, longitudeDelta: 8 }}
-          showsUserLocation
-          showsMyLocationButton
-        >
-          {allPoints.map(point => (
-            <Marker
-              key={`${point._type}-${point.id}`}
-              coordinate={{ latitude: point.lat, longitude: point.lng }}
-              pinColor={markerColor(point._type)}
-            >
-              <Callout>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>
-                    {point._type === "maraude" ? "🚶" : point._type === "signalement" ? "⚠️" : "🛒"}{" "}
-                    {point.title || point.name || "Point d'entraide"}
-                  </Text>
-                  {point.date_start && (
-                    <Text style={styles.calloutText}>
-                      📅 {new Date(point.date_start).toLocaleDateString("fr-FR")}
-                    </Text>
-                  )}
-                  {point.volunteers_count !== undefined && (
-                    <Text style={styles.calloutText}>
-                      👥 {point.volunteers_count}/{point.max_volunteers} bénévoles
-                    </Text>
-                  )}
-                  {point.description && (
-                    <Text style={styles.calloutText} numberOfLines={2}>{point.description}</Text>
-                  )}
-                </View>
-              </Callout>
-            </Marker>
-          ))}
-        </MapView>
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          renderLoading={() => <View style={styles.loader}><ActivityIndicator size="large" color="#10b981" /></View>}
+        />
       )}
 
-      {/* FAB localisation */}
-      <TouchableOpacity style={styles.fab} onPress={requestLocation}>
-        <Text style={styles.fabIcon}>📍</Text>
-      </TouchableOpacity>
+      {/* Légende */}
+      <View style={[styles.legend, { paddingBottom: insets.bottom + 4 }]}>
+        {Object.entries(COLORS).map(([key, color]) => (
+          <View key={key} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={styles.legendText}>{key.charAt(0).toUpperCase() + key.slice(1)}</Text>
+          </View>
+        ))}
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "#7c3aed" }]} />
+          <Text style={styles.legendText}>Moi</Text>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9fafb" },
-  filterBar: { flexDirection: "row", padding: 8, gap: 6, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-  filterBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: "#f3f4f6" },
-  filterBtnActive: { backgroundColor: "#d1fae5" },
+  container: { flex: 1, backgroundColor: "#fff" },
+  filterBar: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#e5e7eb", paddingHorizontal: 12, paddingBottom: 8 },
+  filterScroll: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#e5e7eb", backgroundColor: "#fff" },
   filterText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  locateBtn: { borderColor: "#7c3aed", borderStyle: "dashed" },
+  locateText: { fontSize: 12, fontWeight: "600", color: "#7c3aed" },
   map: { flex: 1 },
   loader: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
-  loaderText: { color: "#6b7280" },
-  callout: { width: 180, padding: 4 },
-  calloutTitle: { fontWeight: "bold", fontSize: 13, marginBottom: 4 },
-  calloutText: { fontSize: 11, color: "#4b5563", marginTop: 2 },
-  fab: { position: "absolute", bottom: 24, right: 16, width: 50, height: 50, borderRadius: 25, backgroundColor: "white", justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  fabIcon: { fontSize: 22 },
+  loaderText: { color: "#6b7280", fontSize: 14 },
+  legend: { flexDirection: "row", justifyContent: "center", gap: 14, paddingVertical: 8, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#f3f4f6" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { fontSize: 10, color: "#6b7280" },
 });

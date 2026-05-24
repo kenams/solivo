@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, Modal, ActivityIndicator, Vibration
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { api } from "../lib/api";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -35,6 +36,7 @@ const DONS = ["repas", "boisson", "couverture", "vêtements", "kit_hygiene", "m�
 
 export function TerrainScreen({ route, navigation }: Props) {
   const { maraudeId, maraudeTitle } = route.params;
+  const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState(0);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -180,7 +182,7 @@ export function TerrainScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       {/* Header phase */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Retour</Text>
         </TouchableOpacity>
