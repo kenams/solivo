@@ -3,6 +3,7 @@ const Stripe = require("stripe");
 const { env } = require("../config/env");
 const { supabase, supa } = require("../config/supabase");
 const { authRequired, optionalAuth } = require("../middleware/auth");
+const { send, donationReceiptEmail } = require("../services/email.service");
 
 const router = express.Router();
 
@@ -90,9 +91,18 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       await supabase.from("donations").update({ status: "completed", stripe_payment_intent: session.payment_intent }).eq("stripe_session_id", session.id);
-      const { data: donation } = await supabase.from("donations").select("*").eq("stripe_session_id", session.id).maybeSingle();
+      const { data: donation } = await supabase.from("donations").select("*, users!donor_id(name, email), associations!association_id(name)").eq("stripe_session_id", session.id).maybeSingle();
       if (donation?.donor_id) {
         await supabase.rpc("sp_increment_field", { p_table: "users", p_id: donation.donor_id, p_column: "total_donations", p_amount: donation.amount_cents });
+      }
+      const donorEmail = donation?.users?.email || session.customer_email;
+      const donorName = donation?.anonymous ? "Donateur anonyme" : (donation?.users?.name || session.customer_details?.name || "Donateur");
+      if (donorEmail && !donation?.anonymous) {
+        send({
+          to: donorEmail,
+          subject: `Merci pour votre don de ${(donation.amount_cents / 100).toFixed(2)}€ 💚`,
+          html: donationReceiptEmail(donorName, (donation.amount_cents / 100).toFixed(2), donation?.associations?.name, donation?.recurring, session.id),
+        }).catch(() => {});
       }
     }
     return res.json({ received: true });

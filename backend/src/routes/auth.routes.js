@@ -6,6 +6,7 @@ const { findUserByEmail, findUserById, createUser, verifyPassword } = require(".
 const { authRequired } = require("../middleware/auth");
 const { supabase } = require("../config/supabase");
 const crypto = require("crypto");
+const { send, welcomeEmail, resetPasswordEmail } = require("../services/email.service");
 
 const router = express.Router();
 
@@ -40,6 +41,8 @@ router.post("/register", async (req, res, next) => {
 
     const user = await createUser({ email, password, name, role });
     const token = signToken(user);
+
+    send({ to: user.email, subject: "Bienvenue sur Solivo 🤝", html: welcomeEmail(user.name) }).catch(() => {});
 
     return res.status(201).json({
       token,
@@ -86,6 +89,7 @@ router.post("/forgot-password", async (req, res, next) => {
         reset_token: token,
         reset_token_expires: new Date(Date.now() + 3600 * 1000).toISOString(),
       }).eq("id", user.id);
+      send({ to: user.email, subject: "Réinitialisation de mot de passe — Solivo", html: resetPasswordEmail(user.name, token, env.appUrl) }).catch(() => {});
     }
     return res.json({ ok: true });
   } catch (err) { next(err); }
