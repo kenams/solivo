@@ -50,6 +50,9 @@
         }
       ]
     ],
+    "updates": {
+      "enabled": false
+    },
     "extra": {
       "eas": {
         "projectId": "3d1a7d07-f0be-46d7-827e-90adbd4a0178"
