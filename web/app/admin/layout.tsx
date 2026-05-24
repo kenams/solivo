@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
-import { LayoutDashboard, Users, AlertTriangle, Building2, MapPin, Heart, ShieldCheck, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, AlertTriangle, Building2, MapPin, CreditCard, ShieldCheck, LogOut, ExternalLink } from "lucide-react";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -11,7 +11,7 @@ const NAV = [
   { href: "/admin/signalements", label: "Signalements", icon: AlertTriangle },
   { href: "/admin/associations", label: "Associations", icon: Building2 },
   { href: "/admin/maraudes", label: "Maraudes", icon: MapPin },
-  { href: "/admin/donations", label: "Dons", icon: Heart },
+  { href: "/admin/donations", label: "Transactions Stripe", icon: CreditCard },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -64,7 +64,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all">
             <LogOut size={15} />Déconnexion
           </button>
-          <Link href="/" className="mt-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-white/30 hover:text-white/60 transition-all">
+          <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer"
+            className="mt-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#635bff]/60 hover:text-[#635bff] hover:bg-[#635bff]/10 transition-all">
+            <ExternalLink size={11} />Stripe Dashboard
+          </a>
+          <Link href="/" className="mt-0.5 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-white/30 hover:text-white/60 transition-all">
             ← Retour au site
           </Link>
         </div>
