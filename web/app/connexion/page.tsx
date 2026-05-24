@@ -18,6 +18,10 @@ export default function ConnexionPage() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const router = useRouter();
 
   async function submit(e: React.FormEvent) {
@@ -45,6 +49,19 @@ export default function ConnexionPage() {
     } catch {
       toast.error("Erreur lors de la connexion démo");
     } finally { setDemoLoading(false); }
+  }
+
+  async function forgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://solivo-api.onrender.com"}/auth/forgot-password`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotSent(true);
+    } catch { toast.error("Erreur"); }
+    finally { setForgotLoading(false); }
   }
 
   async function bootstrapAdmin(e: React.FormEvent) {
@@ -126,6 +143,11 @@ export default function ConnexionPage() {
             className="btn-primary w-full py-4 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-black text-base rounded-2xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5 disabled:opacity-60 disabled:transform-none transition-all duration-300 flex items-center justify-center gap-2">
             {loading ? "Connexion..." : <><span>Se connecter</span><ArrowRight size={18} /></>}
           </button>
+          <div className="text-center pt-1">
+            <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-white/30 hover:text-white/60 transition-colors">
+              Mot de passe oublié ?
+            </button>
+          </div>
         </form>
 
         <p className="text-center text-white/40 text-sm mt-6">
@@ -143,6 +165,40 @@ export default function ConnexionPage() {
           </button>
         </div>
       </motion.div>
+
+      {/* Modal mot de passe oublié */}
+      {showForgot && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => { setShowForgot(false); setForgotSent(false); }}>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="glass border border-white/10 rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <h2 className="text-white font-black text-lg mb-4">Mot de passe oublié</h2>
+            {forgotSent ? (
+              <div className="text-center">
+                <div className="text-4xl mb-3">📬</div>
+                <p className="text-white/70 text-sm">Si ce compte existe, un email vous a été envoyé.</p>
+                <button onClick={() => { setShowForgot(false); setForgotSent(false); }} className="mt-4 px-5 py-2.5 bg-emerald-500 text-white font-semibold rounded-xl text-sm">OK</button>
+              </div>
+            ) : (
+              <form onSubmit={forgotPassword} className="space-y-4">
+                <p className="text-white/50 text-sm">Entrez votre email pour recevoir un lien de réinitialisation.</p>
+                <input type="email" required value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} placeholder="votre@email.com"
+                  className="w-full px-4 py-3 bg-white/[0.06] border border-white/[0.08] rounded-2xl text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                <div className="flex gap-3">
+                  <button type="submit" disabled={forgotLoading}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-2xl disabled:opacity-60">
+                    {forgotLoading ? "..." : "Envoyer"}
+                  </button>
+                  <button type="button" onClick={() => setShowForgot(false)}
+                    className="px-4 py-3 border border-white/10 rounded-2xl text-white/50 hover:text-white hover:bg-white/5 transition-all">
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal bootstrap admin */}
       {showAdminModal && (

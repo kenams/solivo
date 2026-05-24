@@ -78,6 +78,19 @@ router.get("/me", authRequired, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.post("/reset-password", async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password || password.length < 8) return res.status(400).json({ error: "invalid_payload" });
+    const { data: user } = await supabase.from("users").select("id, reset_token, reset_token_expires").eq("reset_token", token).maybeSingle();
+    if (!user) return res.status(400).json({ error: "invalid_token" });
+    if (new Date(user.reset_token_expires) < new Date()) return res.status(400).json({ error: "token_expired" });
+    const { hashPassword } = require("../utils/crypto");
+    await supabase.from("users").update({ password_hash: hashPassword(password), reset_token: null, reset_token_expires: null }).eq("id", user.id);
+    return res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 router.post("/forgot-password", async (req, res, next) => {
   try {
     const email = (req.body?.email || "").trim().toLowerCase();
