@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Plus, Package, Clock, CheckCircle, XCircle, Leaf } from "lucide-react";
@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DashboardCommercePage() {
   const router = useRouter();
-  const user = getUser();
+  const { user } = useAuth();
   const [commerce, setCommerce] = useState<Commerce | null>(null);
   const [invendus, setInvendus] = useState<Invenu[]>([]);
   const [requests, setRequests] = useState<CollecteRequest[]>([]);

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { getUser, saveAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { MapPin, CheckCircle } from "lucide-react";
@@ -25,7 +25,7 @@ const FAQ = [
 ];
 
 export default function PartenaireCommercePage() {
-  const user = getUser();
+  const { user, login, register } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<"landing" | "register" | "onboarding">("landing");
   const [authForm, setAuthForm] = useState({ email: "", password: "", name: "" });
@@ -38,13 +38,11 @@ export default function PartenaireCommercePage() {
     e.preventDefault();
     setLoading(true);
     try {
-      let data;
       try {
-        data = await api.post("/auth/login", { email: authForm.email, password: authForm.password });
+        await login(authForm.email, authForm.password);
       } catch {
-        data = await api.post("/auth/register", { email: authForm.email, password: authForm.password, name: authForm.name, role: "commerce" });
+        await register(authForm.name, authForm.email, authForm.password, "commerce");
       }
-      saveAuth(data.token, data.user);
       setStep("onboarding");
     } catch { toast.error("Erreur de connexion"); }
     finally { setLoading(false); }

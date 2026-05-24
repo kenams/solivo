@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { MapPin, Clock, Package, Search, ArrowRight, Sparkles } from "lucide-react";
@@ -30,7 +30,7 @@ function timeLeft(until: string | null): { text: string; urgent: boolean } {
 }
 
 export default function InvendusPage() {
-  const user = getUser();
+  const { user } = useAuth();
   const [invendus, setInvendus] = useState<Invenu[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

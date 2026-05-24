@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -20,7 +20,7 @@ interface Donation {
 
 export default function DashboardAssociationPage() {
   const router = useRouter();
-  const user = getUser();
+  const { user } = useAuth();
   const [asso, setAsso] = useState<Association | null>(null);
   const [maraudes, setMaraudes] = useState<Maraude[]>([]);
   const [donations, setDonations] = useState<Donation[]>([]);

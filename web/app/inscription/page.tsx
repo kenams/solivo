@@ -1,11 +1,9 @@
 "use client";
-import { useState } from "react";
-import { api } from "@/lib/api";
-import { saveAuth } from "@/lib/auth";
+import { useState, Suspense } from "react";
+import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Mail, Lock, User } from "lucide-react";
 
@@ -17,6 +15,7 @@ const ROLES = [
 ];
 
 function InscriptionForm() {
+  const { register } = useAuth();
   const params = useSearchParams();
   const [form, setForm] = useState({
     email: "", password: "", name: "",
@@ -30,10 +29,9 @@ function InscriptionForm() {
     if (form.password.length < 8) return toast.error("Mot de passe minimum 8 caractères");
     setLoading(true);
     try {
-      const data = await api.post("/auth/register", form);
-      saveAuth(data.token, data.user);
+      await register(form.name, form.email, form.password, form.role);
       toast.success("Bienvenue sur Solivo ! 🎉");
-      router.push("/maraudes");
+      router.push("/");
     } catch (err: unknown) {
       toast.error(err instanceof Error && err.message === "email_already_used" ? "Email déjà utilisé" : "Erreur lors de l'inscription");
     } finally { setLoading(false); }
@@ -61,7 +59,6 @@ function InscriptionForm() {
         </div>
 
         <form onSubmit={submit} className="glass border border-white/[0.08] rounded-3xl p-8 space-y-5 shadow-2xl">
-          {/* Rôle */}
           <div>
             <label className="block text-sm font-semibold text-white/60 mb-3">Je suis...</label>
             <div className="grid grid-cols-2 gap-2">

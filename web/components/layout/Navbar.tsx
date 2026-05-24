@@ -1,32 +1,38 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { getUser, logout } from "@/lib/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 import { Heart, Map, Users, AlertTriangle, Trophy, Menu, X, LogOut, User, Recycle, LayoutDashboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const isHome = pathname === "/";
   if (pathname.startsWith("/admin")) return null;
-  const [user, setUser] = useState<{ name: string; role: string; points: number } | null>(null);
+
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    setUser(getUser());
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  function handleLogout() {
+    logout();
+    router.push("/");
+  }
 
   const mainLinks = [
     { href: "/carte", label: "Carte", icon: <Map size={15} /> },
     { href: "/maraudes", label: "Maraudes", icon: <Users size={15} /> },
     { href: "/invendus", label: "Invendus", icon: <Recycle size={15} /> },
     { href: "/don", label: "Faire un don", icon: <Heart size={15} /> },
-    { href: "/transparence", label: "Transparence", icon: <Trophy size={15} /> },
+    { href: "/leaderboard", label: "Classement", icon: <Trophy size={15} /> },
     { href: "/signalement", label: "Signaler", icon: <AlertTriangle size={15} /> },
   ];
 
@@ -60,7 +66,9 @@ export function Navbar() {
         <div className="hidden lg:flex items-center gap-0.5">
           {mainLinks.map(l => (
             <Link key={l.href} href={l.href}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.07] transition-all duration-200">
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                pathname === l.href ? "text-white bg-white/[0.1]" : "text-white/60 hover:text-white hover:bg-white/[0.07]"
+              }`}>
               <span className="text-emerald-400">{l.icon}</span>{l.label}
             </Link>
           ))}
@@ -86,7 +94,7 @@ export function Navbar() {
                 </div>
                 {user.name.split(" ")[0]}
               </Link>
-              <button onClick={logout}
+              <button onClick={handleLogout}
                 className="p-2 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all">
                 <LogOut size={15} />
               </button>
@@ -138,8 +146,9 @@ export function Navbar() {
                   <div className="flex items-center justify-between px-4 py-2">
                     <Link href="/profil" onClick={() => setOpen(false)} className="text-sm text-white/70 flex items-center gap-2">
                       <User size={14} className="text-emerald-400" />{user.name}
+                      <span className="text-xs text-emerald-400 ml-1">⚡{user.points}pts</span>
                     </Link>
-                    <button onClick={logout} className="flex items-center gap-1 text-sm text-red-400">
+                    <button onClick={() => { handleLogout(); setOpen(false); }} className="flex items-center gap-1 text-sm text-red-400">
                       <LogOut size={14} />Sortir
                     </button>
                   </div>

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { ConditionalFooter } from "@/components/layout/ConditionalFooter";
 import { Toaster } from "react-hot-toast";
+import { AuthProvider } from "@/lib/AuthContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -22,21 +23,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className={inter.variable}>
       <body className="font-sans bg-white text-gray-900 antialiased flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <ConditionalFooter />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#0f1f35",
-              color: "#fff",
-              border: "1px solid rgba(52,211,153,0.2)",
-              borderRadius: "12px",
-            },
-            success: { iconTheme: { primary: "#34d399", secondary: "#fff" } },
-          }}
-        />
+        <AuthProvider>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <ConditionalFooter />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "#0f1f35",
+                color: "#fff",
+                border: "1px solid rgba(52,211,153,0.2)",
+                borderRadius: "12px",
+              },
+              success: { iconTheme: { primary: "#34d399", secondary: "#fff" } },
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   );

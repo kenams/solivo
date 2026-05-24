@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import toast from "react-hot-toast";
 import { AlertTriangle, Plus, X } from "lucide-react";
 
@@ -24,7 +24,7 @@ export default function AlertesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: "grand_froid", titre: "", description: "", city: "", niveau: "warning" });
   const [loading, setLoading] = useState(false);
-  const user = getUser();
+  const { user } = useAuth();
 
   useEffect(() => {
     api.get("/terrain/alertes").then(setAlertes).catch(() => {});

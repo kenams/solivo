@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import { api } from "@/lib/api";
-import { saveAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -9,6 +8,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Mail, Lock } from "lucide-react";
 
 export default function ConnexionPage() {
+  const { login } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,10 +17,9 @@ export default function ConnexionPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const data = await api.post("/auth/login", form);
-      saveAuth(data.token, data.user);
-      toast.success(`Bienvenue ${data.user.name} ! 🎉`);
-      router.push("/maraudes");
+      await login(form.email, form.password);
+      toast.success("Bienvenue ! 🎉");
+      router.push("/");
     } catch {
       toast.error("Email ou mot de passe incorrect");
     } finally { setLoading(false); }
@@ -37,7 +36,6 @@ export default function ConnexionPage() {
         transition={{ duration: 0.6 }}
         className="relative w-full max-w-md"
       >
-        {/* Logo */}
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-xl shadow-lg">🤝</div>

@@ -1,13 +1,13 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { MapPin } from "lucide-react";
 
 export default function CreerAssociationPage() {
-  const user = getUser();
+  const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);

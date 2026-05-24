@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { getUser, logout } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Zap, Users, Heart, Shield, LogOut, ChevronRight, Award } from "lucide-react";
@@ -30,20 +30,16 @@ function getNextLevel(points: number) {
 
 export default function ProfilPage() {
   const router = useRouter();
-  const localUser = getUser();
+  const { user: authUser, logout, loading: authLoading } = useAuth();
   const [user, setUser] = useState<User | null>(null);
-  const [myMaraudes, setMyMaraudes] = useState<{ id: string; title: string; date_start: string; status: string }[]>([]);
 
   useEffect(() => {
-    if (!localUser) { router.push("/connexion"); return; }
-    api.get("/auth/me")
-      .then(data => setUser(data))
-      .catch(() => router.push("/connexion"));
-    api.get("/maraudes?limit=10").then(d => setMyMaraudes(d.maraudes || [])).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { router.push("/connexion"); return; }
+    api.get("/auth/me").then(data => setUser(data)).catch(() => router.push("/connexion"));
+  }, [authUser, authLoading, router]);
 
-  if (!user) return <div className="pt-24 text-center text-gray-400 animate-pulse">Chargement...</div>;
+  if (authLoading || !user) return <div className="pt-24 text-center text-gray-400 animate-pulse">Chargement...</div>;
 
   const level = getLevel(user.points);
   const nextLevel = getNextLevel(user.points);

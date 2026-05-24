@@ -2,9 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { LayoutDashboard, Users, AlertTriangle, Building2, MapPin, Heart, ShieldCheck, LogOut } from "lucide-react";
-import { logout } from "@/lib/auth";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -18,16 +17,17 @@ const NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, logout, loading } = useAuth();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const user = getUser();
+    if (loading) return;
     if (!user || user.role !== "admin") {
       router.replace("/connexion");
     } else {
       setChecked(true);
     }
-  }, [router]);
+  }, [user, loading, router]);
 
   if (!checked) return (
     <div className="min-h-screen bg-[#060f1e] flex items-center justify-center">

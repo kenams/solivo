@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
-import { MapPin, Users, Calendar, ChevronRight, Plus, Search, ArrowRight, Sparkles } from "lucide-react";
+import { MapPin, Users, Calendar, ChevronRight, Plus, Search, ArrowRight, Sparkles, Map } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 
@@ -14,13 +14,13 @@ interface Maraude {
 }
 
 export default function MaraudesPage() {
+  const { user } = useAuth();
   const [maraudes, setMaraudes] = useState<Maraude[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
-  const user = getUser();
 
   useEffect(() => {
-    api.get("/maraudes?limit=50").then(d => setMaraudes(d.maraudes)).catch(() => {}).finally(() => setLoading(false));
+    api.get("/maraudes?limit=50").then(d => setMaraudes(d.maraudes || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const filtered = maraudes.filter(m =>
@@ -28,7 +28,10 @@ export default function MaraudesPage() {
   );
 
   async function join(id: string) {
-    if (!user) return toast.error("Connectez-vous pour rejoindre une maraude");
+    if (!user) {
+      toast.error("Connectez-vous pour rejoindre une maraude");
+      return;
+    }
     try {
       await api.post(`/maraudes/${id}/join`, {});
       toast.success("Inscription confirmée ! 🎉");
@@ -44,7 +47,7 @@ export default function MaraudesPage() {
       <div className="relative bg-[#060f1e] py-16 overflow-hidden">
         <div className="absolute inset-0 grid-pattern opacity-30" />
         <div className="absolute bottom-0 left-1/3 w-72 h-48 bg-blue-500/10 rounded-full blur-[80px]" />
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative max-w-5xl mx-auto px-6 flex items-start justify-between">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative max-w-5xl mx-auto px-6 flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass border border-emerald-500/20 text-emerald-400 text-sm font-semibold mb-6">
               <Sparkles size={13} />Bénévolat de terrain
@@ -52,12 +55,18 @@ export default function MaraudesPage() {
             <h1 className="text-5xl font-black text-white mb-3">Maraudes</h1>
             <p className="text-white/50 text-lg">Rejoignez une équipe près de chez vous et agissez concrètement.</p>
           </div>
-          {user && (
-            <Link href="/maraudes/creer"
-              className="btn-primary flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition-all whitespace-nowrap mt-auto">
-              <Plus size={16} />Créer une maraude
+          <div className="flex items-end gap-3 mt-auto">
+            <Link href="/carte"
+              className="flex items-center gap-2 px-5 py-3 glass border border-white/10 text-white font-semibold rounded-2xl hover:bg-white/10 transition-all whitespace-nowrap">
+              <Map size={16} />Voir sur la carte
             </Link>
-          )}
+            {user && (
+              <Link href="/maraudes/creer"
+                className="btn-primary flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition-all whitespace-nowrap">
+                <Plus size={16} />Créer une maraude
+              </Link>
+            )}
+          </div>
         </motion.div>
       </div>
 
@@ -74,6 +83,18 @@ export default function MaraudesPage() {
           />
         </div>
 
+        {!user && (
+          <div className="mb-8 bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-bold text-emerald-800">Rejoignez la communauté pour participer aux maraudes</p>
+              <p className="text-emerald-600 text-sm mt-1">Créez un compte gratuit pour vous inscrire aux maraudes et accéder au mode terrain.</p>
+            </div>
+            <Link href="/inscription" className="shrink-0 px-5 py-2.5 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors text-sm">
+              Rejoindre →
+            </Link>
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-4">
             {[...Array(4)].map((_, i) => (
@@ -85,10 +106,12 @@ export default function MaraudesPage() {
             <div className="text-6xl mb-4">🚶</div>
             <p className="text-xl font-black text-gray-800 mb-2">Aucune maraude dans cette zone</p>
             <p className="text-gray-500 mb-6">Soyez le premier à en organiser une !</p>
-            <Link href="/maraudes/creer"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-2xl shadow-lg hover:-translate-y-0.5 transition-all">
-              Créer une maraude <ArrowRight size={16} />
-            </Link>
+            {user && (
+              <Link href="/maraudes/creer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-2xl shadow-lg hover:-translate-y-0.5 transition-all">
+                Créer une maraude <ArrowRight size={16} />
+              </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -127,9 +150,11 @@ export default function MaraudesPage() {
                             <Calendar size={14} className="text-emerald-500" />
                             {new Date(m.date_start).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
                           </span>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin size={14} className="text-gray-400" />{m.meeting_point}{m.city ? `, ${m.city}` : ""}
-                          </span>
+                          {m.meeting_point && (
+                            <span className="flex items-center gap-1.5">
+                              <MapPin size={14} className="text-gray-400" />{m.meeting_point}{m.city ? `, ${m.city}` : ""}
+                            </span>
+                          )}
                           <span className="flex items-center gap-1.5">
                             <Users size={14} className="text-blue-400" />{m.volunteers_count}/{m.max_volunteers} bénévoles
                           </span>
@@ -138,11 +163,14 @@ export default function MaraudesPage() {
 
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         {m.is_joined ? (
-                          <span className="px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl text-sm font-bold border border-emerald-100">✓ Inscrit</span>
+                          <Link href={`/maraudes/${m.id}`}
+                            className="px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl text-sm font-bold border border-emerald-100 hover:bg-emerald-100 transition-colors flex items-center gap-1.5">
+                            ✓ Accès terrain <ChevronRight size={14} />
+                          </Link>
                         ) : (
                           <button onClick={() => join(m.id)} disabled={full}
                             className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-2xl text-sm font-bold shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all duration-200">
-                            Rejoindre
+                            {full ? "Complet" : !user ? "Se connecter" : "Rejoindre"}
                           </button>
                         )}
                         <Link href={`/maraudes/${m.id}`} className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-600 transition-colors">
@@ -151,7 +179,6 @@ export default function MaraudesPage() {
                       </div>
                     </div>
 
-                    {/* Barre de progression */}
                     <div className="mt-5">
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div

@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { ArrowLeft, MapPin } from "lucide-react";
 
 export default function CreerMaraudePage() {
-  const user = getUser();
+  const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
